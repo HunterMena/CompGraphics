@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Haunted Grocery Run - WebGL</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="glCanvas"></canvas>
+
+  <div id="hud">
+    <h1>Haunted Grocery Run</h1>
+    <p id="objective">Objective: Collect all list items, avoid the monster, and reach the exit.</p>
+    <ul id="shoppingList"></ul>
+    <p id="status"></p>
+    <p id="timer"></p>
+  </div>
+
+  <div id="instructions" class="overlay visible">
+    <div class="card">
+      <h2>Controls</h2>
+      <ul>
+        <li><strong>WASD</strong>: Move</li>
+        <li><strong>Mouse</strong>: Look around (pointer lock)</li>
+        <li><strong>E</strong>: Pick up item at center reticle</li>
+        <li><strong>F</strong>: Toggle flashlight</li>
+        <li><strong>R</strong>: Restart after win/lose</li>
+      </ul>
+      <p>Click <em>Start</em> to lock pointer and begin.</p>
+      <button id="startBtn">Start</button>
+    </div>
+  </div>
+
+  <div id="reticle">+</div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

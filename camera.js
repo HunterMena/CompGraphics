@@ -24,12 +24,12 @@ export class GameCamera {
     let dz = 0;
 
     if (keys.w) {
-      dx += this.speed * Math.sin(this.yaw) * dt;
-      dz += this.speed * Math.cos(this.yaw) * dt;
-    }
-    if (keys.s) {
       dx -= this.speed * Math.sin(this.yaw) * dt;
       dz -= this.speed * Math.cos(this.yaw) * dt;
+    }
+    if (keys.s) {
+      dx += this.speed * Math.sin(this.yaw) * dt;
+      dz += this.speed * Math.cos(this.yaw) * dt;
     }
     if (keys.a) {
       dx -= this.speed * Math.cos(this.yaw) * dt;

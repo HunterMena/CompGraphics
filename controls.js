@@ -11,22 +11,21 @@ export function createControls({ onPickup, onFlashlightToggle, onRestart, onTurn
 
   const down = (event) => {
     const k = event.key.toLowerCase();
-    const c = event.code;
-    if (c === 'KeyW') keys.w = true;
-    if (c === 'KeyA') keys.a = true;
-    if (c === 'KeyS') keys.s = true;
-    if (c === 'KeyD') keys.d = true;
-    if (c === 'ArrowLeft') keys.turnLeft = true;
-    if (c === 'ArrowRight') keys.turnRight = true;
-    if (c === 'KeyE') {
+    if (k === 'w') keys.w = true;
+    if (k === 'a') keys.a = true;
+    if (k === 's') keys.s = true;
+    if (k === 'd') keys.d = true;
+    if (k === 'arrowleft') keys.turnLeft = true;
+    if (k === 'arrowright') keys.turnRight = true;
+    if (k === 'e') {
       onPickup?.();
     }
-    if (c === 'KeyF') onFlashlightToggle?.();
-    if (c === 'KeyR') {
+    if (k === 'f') onFlashlightToggle?.();
+    if (k === 'r') {
       onTurnBack?.();
       onRestart?.();
     }
-    if (c === 'Space') {
+    if (k === ' ') {
       keys.space = true;
       onJump?.();
       event.preventDefault();
@@ -34,14 +33,14 @@ export function createControls({ onPickup, onFlashlightToggle, onRestart, onTurn
   };
 
   const up = (event) => {
-    const c = event.code;
-    if (c === 'KeyW') keys.w = false;
-    if (c === 'KeyA') keys.a = false;
-    if (c === 'KeyS') keys.s = false;
-    if (c === 'KeyD') keys.d = false;
-    if (c === 'ArrowLeft') keys.turnLeft = false;
-    if (c === 'ArrowRight') keys.turnRight = false;
-    if (c === 'Space') keys.space = false;
+    const k = event.key.toLowerCase();
+    if (k === 'w') keys.w = false;
+    if (k === 'a') keys.a = false;
+    if (k === 's') keys.s = false;
+    if (k === 'd') keys.d = false;
+    if (k === 'arrowleft') keys.turnLeft = false;
+    if (k === 'arrowright') keys.turnRight = false;
+    if (k === ' ') keys.space = false;
   };
 
   window.addEventListener('keydown', down);

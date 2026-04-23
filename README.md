@@ -4,37 +4,18 @@ A browser horror-survival mini game implemented with **plain WebGL + JavaScript*
 
 ## Run
 
-Because pointer lock and ES modules are used, run with a static server.
-
-### Option A: Python (recommended)
+Because pointer lock and ES modules are used, run with a static server:
 
 ```bash
 python3 -m http.server 8080
 ```
 
-On Windows (using `py`):
-
-```powershell
-py -m http.server 8080 --bind 127.0.0.1
-```
-
-Open this exact URL in your browser:
-
-- `http://localhost:8080`
-- or `http://127.0.0.1:8080`
-
-> If Python prints `http://[::]:8080/`, that is an IPv6 bind display and often is **not** the URL to paste directly in some browsers/contexts. Use `localhost` or `127.0.0.1` instead.
-
-### Option B: VS Code Live Server
-
-You can also use the **Live Server** extension and open `index.html` from the project root.
+Then open `http://localhost:8080`.
 
 ## Controls
 
 - **WASD**: Move
 - **Mouse**: Look (pointer lock)
-- **← / →**: Keyboard turn fallback
-- **Space**: Jump
 - **E**: Pickup targeted item (raycast from reticle)
 - **F**: Toggle flashlight
 - **R**: Restart game after win/lose

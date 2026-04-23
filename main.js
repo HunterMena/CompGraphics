@@ -1,6 +1,3 @@
-import { createControls } from './controls.js';
-import { GameCamera } from './camera.js';
-
 const canvas = document.getElementById('glCanvas');
 const gl = canvas.getContext('webgl');
 if (!gl) {
@@ -150,7 +147,6 @@ class Texture {
   constructor(canvasGenerator) {
     this.handle = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.handle);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
@@ -382,20 +378,15 @@ const textures = {
     }
   }),
   label: new Texture((ctx, w, h) => {
-    ctx.fillStyle = '#f4f1e7';
+    ctx.fillStyle = '#ece8d8';
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#272727';
-    ctx.fillRect(0, 0, w, 14);
-    ctx.fillRect(0, h - 14, w, 14);
-    ctx.fillStyle = '#d8b200';
-    ctx.fillRect(8, 40, w - 16, 34);
-    ctx.fillStyle = '#1e1e1e';
-    ctx.fillRect(12, 80, w - 24, 22);
-    ctx.fillStyle = '#101010';
-    ctx.font = 'bold 16px sans-serif';
-    ctx.fillText('GROCERY', 28, 63);
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText('FRESH • VALUE', 20, 97);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(0, 0, w, 16);
+    ctx.fillStyle = '#f0c820';
+    ctx.fillRect(10, 30, 108, 26);
+    ctx.fillStyle = '#111';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText('ITEM', 44, 47);
   }),
   monster: new Texture((ctx, w, h) => {
     ctx.fillStyle = '#4f6f54';
@@ -420,25 +411,6 @@ const textures = {
     ctx.fillStyle = '#a8b377';
     ctx.fillRect(w * 0.75, h * 0.45, 10, 10);
   }),
-  ceiling: new Texture((ctx, w, h) => {
-    ctx.fillStyle = '#d6d6d6';
-    ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#c2c2c2';
-    for (let i = 0; i < 8; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * 16, 0);
-      ctx.lineTo(i * 16, h);
-      ctx.stroke();
-    }
-  }),
-  lightPanel: new Texture((ctx, w, h) => {
-    ctx.fillStyle = '#efefdf';
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#c4c4a2';
-    for (let i = 0; i < 7; i++) {
-      ctx.fillRect(0, i * 18, w, 2);
-    }
-  }),
 };
 
 const materials = {
@@ -449,8 +421,6 @@ const materials = {
   monster: new Material(textures.monster, 0.2, 0.7, 20),
   checkout: new Material(textures.checkout, 0.22, 0.45, 14),
   door: new Material(textures.door, 0.24, 0.45, 18),
-  ceiling: new Material(textures.ceiling, 0.24, 0.2, 6),
-  lightPanel: new Material(textures.lightPanel, 0.45, 0.15, 4),
 };
 
 const entities = [];
@@ -463,8 +433,7 @@ function addEntity(opts) {
   return e;
 }
 
-addEntity({ name: 'floor', type: 'floor', material: materials.floor, position: [0, -0.6, 0], scale: [44, 1, 44], solid: false });
-addEntity({ name: 'ceiling', type: 'ceiling', material: materials.ceiling, position: [0, 4.2, 0], scale: [44, 0.8, 44], solid: false });
+addEntity({ name: 'floor', type: 'floor', material: materials.floor, position: [0, -0.6, 0], scale: [44, 1, 44], solid: true });
 addEntity({ name: 'checkout', type: 'checkout', material: materials.checkout, position: [0, 0.6, -16], scale: [12, 2.2, 2], solid: true });
 
 for (const z of [-8, 0, 8]) {
@@ -479,10 +448,6 @@ addEntity({ name: 'wall-east', type: 'wall', material: materials.wall, position:
 
 const door = addEntity({ name: 'exit-door', type: 'door', material: materials.door, position: [0, 1.6, 20.3], scale: [3.8, 3.2, 0.5], solid: true });
 
-for (const z of [-14, -7, 0, 7, 14]) {
-  addEntity({ name: `light-${z}`, type: 'lightPanel', material: materials.lightPanel, position: [0, 3.5, z], scale: [4.5, 0.08, 1.4], solid: false });
-}
-
 const shoppingItems = [
   { name: 'Milk', pos: [-6, 1.9, -8] },
   { name: 'Cereal', pos: [6, 1.9, -8] },
@@ -494,42 +459,23 @@ const shoppingItems = [
   { name: 'Bandages', pos: [0, 1.6, 14] },
 ];
 
-function createNamedItemMaterial(name) {
-  const tex = new Texture((ctx, w, h) => {
-    ctx.fillStyle = '#f3f0e6';
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(0, 0, w, 14);
-    ctx.fillRect(0, h - 14, w, 14);
-    ctx.fillStyle = '#2b5f9e';
-    ctx.fillRect(8, 36, w - 16, 34);
-    ctx.fillStyle = '#fefefe';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.fillText(name.toUpperCase().slice(0, 11), 12, 58);
-    ctx.fillStyle = '#242424';
-    ctx.font = '12px monospace';
-    ctx.fillText('SKU 10-24', 24, 94);
-  });
-  return new Material(tex, 0.24, 0.45, 22);
-}
-
 for (const item of shoppingItems) {
-  addEntity({
-    name: item.name,
-    type: 'item',
-    material: createNamedItemMaterial(item.name),
-    position: item.pos,
-    scale: [0.7, 0.7, 0.7],
-    rotationY: Math.PI,
-    pickable: true,
-  });
+  addEntity({ name: item.name, type: 'item', material: materials.item, position: item.pos, scale: [0.7, 0.7, 0.7], pickable: true });
 }
 
-const monster = addEntity({ name: 'monster', type: 'monster', material: materials.monster, position: [0, 1.0, -10], scale: [1.4, 2.0, 1.4], solid: true });
+const monster = addEntity({ name: 'monster', type: 'monster', material: materials.monster, position: [0, 1.0, -2], scale: [1.6, 2.4, 1.6], solid: true });
 
-const player = new GameCamera();
-player.flashlightOn = true;
-player.radius = 0.42;
+const player = {
+  position: [0, 1.0, 16],
+  velocity: [0, 0, 0],
+  yaw: Math.PI,
+  pitch: 0,
+  radius: 0.42,
+  speed: 5.5,
+  flashlightOn: true,
+};
+
+const input = { w: false, a: false, s: false, d: false };
 
 let doorOpened = false;
 let flickerUntil = 0;
@@ -585,7 +531,7 @@ function playerCollides(pos, padding = player.radius) {
     const nearestZ = Math.max(a.min[2], Math.min(pos[2], a.max[2]));
     const dx = pos[0] - nearestX;
     const dz = pos[2] - nearestZ;
-    if (dx * dx + dz * dz < padding * padding) {
+    if (dx * dx + dz * dz < padding * padding && pos[1] > a.min[1] - 1.8 && pos[1] < a.max[1] + 1.8) {
       return true;
     }
   }
@@ -593,12 +539,20 @@ function playerCollides(pos, padding = player.radius) {
 }
 
 function movePlayer(dt) {
-  player.updateFromKeys(controls.keys, dt, (dx, dz) => {
-    const nextX = [player.position[0] + dx, player.position[1], player.position[2]];
-    if (!playerCollides(nextX)) player.position[0] = nextX[0];
-    const nextZ = [player.position[0], player.position[1], player.position[2] + dz];
-    if (!playerCollides(nextZ)) player.position[2] = nextZ[2];
-  });
+  const forward = [Math.sin(player.yaw), 0, Math.cos(player.yaw)];
+  const right = [Math.cos(player.yaw), 0, -Math.sin(player.yaw)];
+  let wish = [0, 0, 0];
+  if (input.w) wish = Vec3.add(wish, forward);
+  if (input.s) wish = Vec3.sub(wish, forward);
+  if (input.a) wish = Vec3.sub(wish, right);
+  if (input.d) wish = Vec3.add(wish, right);
+  wish = Vec3.normalize(wish);
+
+  const move = Vec3.mul(wish, player.speed * dt);
+  const nextX = [player.position[0] + move[0], player.position[1], player.position[2]];
+  if (!playerCollides(nextX)) player.position[0] = nextX[0];
+  const nextZ = [player.position[0], player.position[1], player.position[2] + move[2]];
+  if (!playerCollides(nextZ)) player.position[2] = nextZ[2];
 }
 
 function moveMonster(dt) {
@@ -661,11 +615,8 @@ function resetGame() {
   player.position = [0, 1.0, 16];
   player.yaw = Math.PI;
   player.pitch = 0;
-  player.isJumping = false;
-  player.velY = 0;
-  player.groundY = 1.0;
   player.flashlightOn = true;
-  monster.position = [0, 1.0, -10];
+  monster.position = [0, 1.0, -2];
   gameOver = false;
   victory = false;
   doorOpened = false;
@@ -713,17 +664,24 @@ function worldFlicker(nowMs) {
   return 1.0;
 }
 
-let controls;
 function setupInput() {
-  controls = createControls({
-    onPickup: handlePickup,
-    onFlashlightToggle: () => {
+  document.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (k in input) input[k] = true;
+    if (k === 'e') handlePickup();
+    if (k === 'f') {
       player.flashlightOn = !player.flashlightOn;
       setStatus(player.flashlightOn ? 'Flashlight ON' : 'Flashlight OFF');
-    },
-    onRestart: resetGame,
-    onJump: () => player.jump(),
+    }
+    if (k === 'r') {
+      resetGame();
+    }
   });
+  document.addEventListener('keyup', (e) => {
+    const k = e.key.toLowerCase();
+    if (k in input) input[k] = false;
+  });
+
   document.addEventListener('mousemove', (e) => {
     if (document.pointerLockElement !== canvas) return;
     player.yaw -= e.movementX * 0.002;
@@ -802,7 +760,7 @@ function frame(nowMs) {
   const dt = Math.min(0.033, (nowMs - lastTime) / 1000);
   lastTime = nowMs;
 
-  if (!gameOver && !victory) {
+  if (!gameOver && !victory && document.pointerLockElement === canvas) {
     movePlayer(dt);
     moveMonster(dt);
     updateEvents(nowMs);

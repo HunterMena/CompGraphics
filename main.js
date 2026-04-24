@@ -9,6 +9,7 @@ const statusLabel = document.getElementById('status');
 const timerLabel = document.getElementById('timer');
 const instructionsOverlay = document.getElementById('instructions');
 const startBtn = document.getElementById('startBtn');
+const pickupPromptEl = document.getElementById('pickupPrompt');
 
 const DEG2RAD = Math.PI / 180;
 
@@ -36,10 +37,10 @@ const Mat4 = {
     for (let i = 0; i < 4; i++) {
       for (let j = 0; j < 4; j++) {
         out[i * 4 + j] =
-          a[i * 4 + 0] * b[0 * 4 + j] +
-          a[i * 4 + 1] * b[1 * 4 + j] +
-          a[i * 4 + 2] * b[2 * 4 + j] +
-          a[i * 4 + 3] * b[3 * 4 + j];
+          a[0 * 4 + j] * b[i * 4 + 0] +
+          a[1 * 4 + j] * b[i * 4 + 1] +
+          a[2 * 4 + j] * b[i * 4 + 2] +
+          a[3 * 4 + j] * b[i * 4 + 3];
       }
     }
     return out;
@@ -157,6 +158,7 @@ class Texture {
     texCanvas.height = 128;
     const ctx = texCanvas.getContext('2d');
     canvasGenerator(ctx, texCanvas.width, texCanvas.height);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texCanvas);
     gl.generateMipmap(gl.TEXTURE_2D);
   }
@@ -337,6 +339,11 @@ void main() {
   float lighting = ambient + diffD * 0.65 + uPointLightOn * diffP;
   vec3 color = baseColor * lighting + vec3(specD + uPointLightOn * specP);
 
+  float fogDist = length(uCameraPos - vWorldPos);
+  float fogFactor = clamp(exp(-fogDist * 0.048), 0.0, 1.0);
+  vec3 fogColor = vec3(0.02, 0.022, 0.028);
+  color = mix(fogColor, color, fogFactor);
+
   gl_FragColor = vec4(color, 1.0);
 }
 `;
@@ -411,6 +418,17 @@ const textures = {
     ctx.fillStyle = '#a8b377';
     ctx.fillRect(w * 0.75, h * 0.45, 10, 10);
   }),
+  ceiling: new Texture((ctx, w, h) => {
+    ctx.fillStyle = '#383838';
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 220; i++) {
+      const x = Math.random() * w;
+      const y = Math.random() * h;
+      const c = 45 + Math.floor(Math.random() * 30);
+      ctx.fillStyle = `rgba(${c},${c},${c},0.35)`;
+      ctx.fillRect(x, y, 4, 4);
+    }
+  }),
 };
 
 const materials = {
@@ -421,6 +439,7 @@ const materials = {
   monster: new Material(textures.monster, 0.2, 0.7, 20),
   checkout: new Material(textures.checkout, 0.22, 0.45, 14),
   door: new Material(textures.door, 0.24, 0.45, 18),
+  ceiling: new Material(textures.ceiling, 0.15, 0.08, 4),
 };
 
 const entities = [];
@@ -431,6 +450,27 @@ function addEntity(opts) {
   entities.push(e);
   if (e.solid) colliders.push(e);
   return e;
+}
+
+function makeItemTexture(name) {
+  return new Texture((ctx, w, h) => {
+    ctx.fillStyle = '#e8e4d4';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, w, 22);
+    ctx.fillStyle = '#c8a800';
+    ctx.fillRect(8, 34, w - 16, 30);
+    ctx.fillStyle = '#111';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, w / 2, 49);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#555';
+    ctx.font = '9px sans-serif';
+    ctx.fillText('HAUNTED GROCERY', 10, 14);
+  });
 }
 
 addEntity({ name: 'floor', type: 'floor', material: materials.floor, position: [0, -0.6, 0], scale: [44, 1, 44], solid: true });
@@ -445,43 +485,55 @@ addEntity({ name: 'wall-north', type: 'wall', material: materials.wall, position
 addEntity({ name: 'wall-south', type: 'wall', material: materials.wall, position: [0, 1.4, 21], scale: [44, 4, 1], solid: true });
 addEntity({ name: 'wall-west', type: 'wall', material: materials.wall, position: [-21, 1.4, 0], scale: [1, 4, 44], solid: true });
 addEntity({ name: 'wall-east', type: 'wall', material: materials.wall, position: [21, 1.4, 0], scale: [1, 4, 44], solid: true });
+addEntity({ name: 'ceiling', type: 'ceiling', material: materials.ceiling, position: [0, 3.55, 0], scale: [44, 0.5, 44] });
 
 const door = addEntity({ name: 'exit-door', type: 'door', material: materials.door, position: [0, 1.6, 20.3], scale: [3.8, 3.2, 0.5], solid: true });
 
 const shoppingItems = [
-  { name: 'Milk', pos: [-6, 1.9, -8] },
-  { name: 'Cereal', pos: [6, 1.9, -8] },
-  { name: 'Bread', pos: [-6, 1.9, 0] },
-  { name: 'Batteries', pos: [6, 1.9, 0] },
-  { name: 'Soap', pos: [-6, 1.9, 8] },
-  { name: 'Coffee', pos: [6, 1.9, 8] },
-  { name: 'Can Soup', pos: [0, 1.6, -16] },
-  { name: 'Bandages', pos: [0, 1.6, 14] },
+  { name: 'Milk',      pos: [-4.1, 1.9, -8] },
+  { name: 'Cereal',    pos: [4.1,  1.9, -8] },
+  { name: 'Bread',     pos: [-4.1, 1.9,  0] },
+  { name: 'Batteries', pos: [4.1,  1.9,  0] },
+  { name: 'Soap',      pos: [-4.1, 1.9,  8] },
+  { name: 'Coffee',    pos: [4.1,  1.9,  8] },
+  { name: 'Can Soup',  pos: [0,    1.9, -13] },
+  { name: 'Bandages',  pos: [4.1,  1.9,  12] },
 ];
 
 for (const item of shoppingItems) {
-  addEntity({ name: item.name, type: 'item', material: materials.item, position: item.pos, scale: [0.7, 0.7, 0.7], pickable: true });
+  const itemMat = new Material(makeItemTexture(item.name), 0.3, 0.55, 28);
+  addEntity({ name: item.name, type: 'item', material: itemMat, position: item.pos, scale: [0.7, 0.7, 0.7], pickable: true });
 }
 
 const monster = addEntity({ name: 'monster', type: 'monster', material: materials.monster, position: [0, 1.0, -2], scale: [1.6, 2.4, 1.6], solid: true });
 
+const GRAVITY = 16;
+const JUMP_VEL = 6.5;
+const GROUND_Y = 1.0;
+
 const player = {
-  position: [0, 1.0, 16],
+  position: [0, GROUND_Y, 16],
   velocity: [0, 0, 0],
   yaw: Math.PI,
   pitch: 0,
   radius: 0.42,
   speed: 5.5,
+  turnSpeed: 2.2,
   flashlightOn: true,
+  velY: 0,
+  isGrounded: true,
 };
 
-const input = { w: false, a: false, s: false, d: false };
+const input = { w: false, a: false, s: false, d: false, arrowleft: false, arrowright: false, ' ': false };
+let gameStarted = false;
 
 let doorOpened = false;
 let flickerUntil = 0;
 let scareTriggered = false;
 let gameOver = false;
 let victory = false;
+let monsterStuckTime = 0;
+let monsterSideBias = 1;
 let startTime = performance.now();
 let lastTime = startTime;
 
@@ -531,7 +583,7 @@ function playerCollides(pos, padding = player.radius) {
     const nearestZ = Math.max(a.min[2], Math.min(pos[2], a.max[2]));
     const dx = pos[0] - nearestX;
     const dz = pos[2] - nearestZ;
-    if (dx * dx + dz * dz < padding * padding && pos[1] > a.min[1] - 1.8 && pos[1] < a.max[1] + 1.8) {
+    if (dx * dx + dz * dz < padding * padding && pos[1] > a.min[1] - 0.8 && pos[1] < a.max[1] + 0.8) {
       return true;
     }
   }
@@ -539,8 +591,25 @@ function playerCollides(pos, padding = player.radius) {
 }
 
 function movePlayer(dt) {
+  if (input.arrowleft) player.yaw += player.turnSpeed * dt;
+  if (input.arrowright) player.yaw -= player.turnSpeed * dt;
+
+  if (player.isGrounded && input[' ']) {
+    player.velY = JUMP_VEL;
+    player.isGrounded = false;
+  }
+  if (!player.isGrounded) {
+    player.position[1] += player.velY * dt;
+    player.velY -= GRAVITY * dt;
+    if (player.position[1] <= GROUND_Y) {
+      player.position[1] = GROUND_Y;
+      player.isGrounded = true;
+      player.velY = 0;
+    }
+  }
+
   const forward = [Math.sin(player.yaw), 0, Math.cos(player.yaw)];
-  const right = [Math.cos(player.yaw), 0, -Math.sin(player.yaw)];
+  const right = [-Math.cos(player.yaw), 0, Math.sin(player.yaw)];
   let wish = [0, 0, 0];
   if (input.w) wish = Vec3.add(wish, forward);
   if (input.s) wish = Vec3.sub(wish, forward);
@@ -555,28 +624,53 @@ function movePlayer(dt) {
   if (!playerCollides(nextZ)) player.position[2] = nextZ[2];
 }
 
+function monsterHits(pos) {
+  for (const c of colliders) {
+    if (c === monster || (c === door && doorOpened)) continue;
+    const a = c.aabb();
+    if (pos[0] > a.min[0] - 0.85 && pos[0] < a.max[0] + 0.85 &&
+        pos[2] > a.min[2] - 0.85 && pos[2] < a.max[2] + 0.85 &&
+        pos[1] > a.min[1] - 0.8  && pos[1] < a.max[1] + 0.8) return true;
+  }
+  return false;
+}
+
 function moveMonster(dt) {
   const toPlayer = Vec3.sub(player.position, monster.position);
   const dist = Vec3.length(toPlayer);
   const dir = Vec3.normalize([toPlayer[0], 0, toPlayer[2]]);
   monster.rotationY = Math.atan2(dir[0], dir[2]);
 
-  const speed = dist > 8 ? 1.8 : 2.7;
+  const speed = dist > 10 ? 3.0 : dist > 5 ? 3.8 : 4.5;
   const step = Vec3.mul(dir, speed * dt);
   const candidate = [monster.position[0] + step[0], monster.position[1], monster.position[2] + step[2]];
 
-  let blocked = false;
-  for (const c of colliders) {
-    if (c === monster || (c === door && doorOpened)) continue;
-    const a = c.aabb();
-    if (candidate[0] > a.min[0] - 0.8 && candidate[0] < a.max[0] + 0.8 && candidate[2] > a.min[2] - 0.8 && candidate[2] < a.max[2] + 0.8) {
-      blocked = true;
-      break;
-    }
-  }
-  if (!blocked) {
+  if (!monsterHits(candidate)) {
     monster.position[0] = candidate[0];
     monster.position[2] = candidate[2];
+    monsterStuckTime = 0;
+  } else {
+    monsterStuckTime += dt;
+    if (monsterStuckTime > 1.2) {
+      monsterSideBias = -monsterSideBias;
+      monsterStuckTime = 0;
+    }
+    const angles = [
+      0.5 * monsterSideBias, -0.5 * monsterSideBias,
+      1.05 * monsterSideBias, -1.05 * monsterSideBias,
+      1.57, -1.57,
+    ];
+    for (const ang of angles) {
+      const cos = Math.cos(ang), sin = Math.sin(ang);
+      const altDir = [dir[0] * cos - dir[2] * sin, 0, dir[0] * sin + dir[2] * cos];
+      const alt = Vec3.add(monster.position, Vec3.mul(altDir, speed * dt));
+      alt[1] = monster.position[1];
+      if (!monsterHits(alt)) {
+        monster.position[0] = alt[0];
+        monster.position[2] = alt[2];
+        break;
+      }
+    }
   }
 
   if (dist < 1.4 && !gameOver && !victory) {
@@ -586,35 +680,48 @@ function moveMonster(dt) {
   }
 }
 
-function handlePickup() {
-  if (gameOver || victory) return;
-  const origin = [player.position[0], player.position[1] + 0.4, player.position[2]];
-  const dir = [
-    Math.sin(player.yaw) * Math.cos(player.pitch),
-    Math.sin(player.pitch),
-    Math.cos(player.yaw) * Math.cos(player.pitch),
-  ];
-  let best = null;
-  let bestT = 3.0;
+function getNearbyItem(range = 3.5) {
+  const forward = [Math.sin(player.yaw), 0, Math.cos(player.yaw)];
+  let best = null, bestDist = range;
   for (const e of entities) {
     if (!e.pickable || e.collected) continue;
-    const t = rayAABB(origin, dir, e.aabb(), 3.0);
-    if (t !== null && t < bestT) {
-      bestT = t;
-      best = e;
+    const dx = e.position[0] - player.position[0];
+    const dz = e.position[2] - player.position[2];
+    const dist = Math.hypot(dx, dz);
+    if (dist < bestDist) {
+      const dot = (dx / dist) * forward[0] + (dz / dist) * forward[2];
+      if (dot > 0.2) { bestDist = dist; best = e; }
     }
   }
+  return best;
+}
+
+let pickupNotifTimer = 0;
+const pickupNotifEl = document.getElementById('pickupNotif');
+
+function showPickupNotif(name) {
+  pickupNotifEl.textContent = `+ ${name}`;
+  pickupNotifEl.classList.add('visible');
+  pickupNotifTimer = 1.6;
+}
+
+function handlePickup() {
+  if (gameOver || victory || !gameStarted) return;
+  const best = getNearbyItem(3.5);
   if (best) {
     best.collected = true;
     updateListUI();
-    setStatus(`Picked up: ${best.name}`);
+    showPickupNotif(best.name);
+    setStatus(allItemsCollected() ? 'All items found! Get to the exit.' : '');
   }
 }
 
 function resetGame() {
-  player.position = [0, 1.0, 16];
+  player.position = [0, GROUND_Y, 16];
   player.yaw = Math.PI;
   player.pitch = 0;
+  player.velY = 0;
+  player.isGrounded = true;
   player.flashlightOn = true;
   monster.position = [0, 1.0, -2];
   gameOver = false;
@@ -625,10 +732,19 @@ function resetGame() {
   if (!colliders.includes(door)) colliders.push(door);
   scareTriggered = false;
   flickerUntil = 0;
+  monsterStuckTime = 0;
+  monsterSideBias = 1;
   startTime = performance.now();
   setStatus('Collect the full list. Stay away from the monster.');
   entities.filter((e) => e.pickable).forEach((e) => { e.collected = false; });
   updateListUI();
+  if (gameStarted) instructionsOverlay.classList.remove('visible');
+}
+
+function checkPickupPrompt() {
+  if (gameOver || victory || !gameStarted) { pickupPromptEl.textContent = ''; return; }
+  const best = getNearbyItem(3.5);
+  pickupPromptEl.textContent = best ? `[E]  ${best.name}` : '';
 }
 
 function updateEvents(nowMs) {
@@ -668,6 +784,7 @@ function setupInput() {
   document.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     if (k in input) input[k] = true;
+    if (k === 'arrowleft' || k === 'arrowright' || k === ' ') e.preventDefault();
     if (k === 'e') handlePickup();
     if (k === 'f') {
       player.flashlightOn = !player.flashlightOn;
@@ -689,16 +806,17 @@ function setupInput() {
     player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch));
   });
 
-  canvas.addEventListener('click', () => canvas.requestPointerLock());
+  canvas.addEventListener('click', () => {
+    if (gameStarted) canvas.requestPointerLock();
+  });
   startBtn.addEventListener('click', () => {
+    gameStarted = true;
     instructionsOverlay.classList.remove('visible');
     canvas.requestPointerLock();
   });
 
   document.addEventListener('pointerlockchange', () => {
-    if (document.pointerLockElement !== canvas && !gameOver && !victory) {
-      instructionsOverlay.classList.add('visible');
-    } else if (!gameOver && !victory) {
+    if (document.pointerLockElement === canvas && !gameOver && !victory) {
       instructionsOverlay.classList.remove('visible');
     }
   });
@@ -760,11 +878,22 @@ function frame(nowMs) {
   const dt = Math.min(0.033, (nowMs - lastTime) / 1000);
   lastTime = nowMs;
 
-  if (!gameOver && !victory && document.pointerLockElement === canvas) {
+  if (gameStarted && !gameOver && !victory) {
     movePlayer(dt);
     moveMonster(dt);
     updateEvents(nowMs);
   }
+
+  for (const e of entities) {
+    if (e.pickable && !e.collected) e.rotationY += dt * 1.4;
+  }
+
+  if (pickupNotifTimer > 0) {
+    pickupNotifTimer -= dt;
+    if (pickupNotifTimer <= 0) pickupNotifEl.classList.remove('visible');
+  }
+
+  checkPickupPrompt();
 
   const elapsed = (nowMs - startTime) / 1000;
   timerLabel.textContent = `Time Survived: ${elapsed.toFixed(1)}s`;

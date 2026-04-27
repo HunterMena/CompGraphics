@@ -8,6 +8,10 @@ const timerLabel = document.getElementById('timer');
 const instructionsOverlay = document.getElementById('instructions');
 const startBtn = document.getElementById('startBtn');
 const pickupPromptEl = document.getElementById('pickupPrompt');
+const escapeMsgEl = document.getElementById('escapeMsg');
+const victoryOverlay = document.getElementById('victoryOverlay');
+const victoryTimeEl = document.getElementById('victoryTime');
+const playAgainBtn = document.getElementById('playAgainBtn');
 
 const DEG2RAD = Math.PI / 180;
 
@@ -114,6 +118,7 @@ class Texture {
     gl.generateMipmap(gl.TEXTURE_2D);
   }
 }
+
 
 class Mesh {
   constructor(vertices, normals, uvs, indices) {
@@ -336,6 +341,62 @@ const textures = {
   exitLight: new Texture((ctx,w,h) => {
     ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,w,h);
   }),
+  register: new Texture((ctx,w,h) => {
+    ctx.fillStyle='#222'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#1a3a5c'; ctx.fillRect(8,8,w-16,h*0.45);
+    ctx.fillStyle='#4a9cdb'; ctx.fillRect(12,12,w-24,h*0.35);
+    ctx.fillStyle='#333'; ctx.fillRect(4,h*0.56,w-8,10);
+    ctx.fillStyle='#555'; ctx.fillRect(4,h*0.68,w-8,12);
+    ctx.fillStyle='#444'; ctx.fillRect(4,h*0.82,w-8,14);
+  }),
+  signPharmacy: new Texture((ctx,w,h) => {
+    ctx.fillStyle='#dceeff'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#1a4fa8'; ctx.fillRect(0,0,w,34);
+    ctx.strokeStyle='#1a4fa8'; ctx.lineWidth=3; ctx.strokeRect(2,2,w-4,h-4);
+    ctx.fillStyle='#fff'; ctx.font='bold 17px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('PHARMACY',w/2,17);
+    ctx.fillStyle='#1a4fa8'; ctx.font='12px sans-serif'; ctx.fillText('Health & First Aid',w/2,76);
+  }),
+  signBaking: new Texture((ctx,w,h) => {
+    ctx.fillStyle='#fef8ea'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#8b5e1a'; ctx.fillRect(0,0,w,34);
+    ctx.strokeStyle='#8b5e1a'; ctx.lineWidth=3; ctx.strokeRect(2,2,w-4,h-4);
+    ctx.fillStyle='#fff'; ctx.font='bold 20px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('BAKING',w/2,17);
+    ctx.fillStyle='#8b5e1a'; ctx.font='12px sans-serif'; ctx.fillText('Bread & Pantry',w/2,76);
+  }),
+  signCleaning: new Texture((ctx,w,h) => {
+    ctx.fillStyle='#e8f5e9'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#2e7d32'; ctx.fillRect(0,0,w,34);
+    ctx.strokeStyle='#2e7d32'; ctx.lineWidth=3; ctx.strokeRect(2,2,w-4,h-4);
+    ctx.fillStyle='#fff'; ctx.font='bold 17px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('CLEANING',w/2,17);
+    ctx.fillStyle='#2e7d32'; ctx.font='12px sans-serif'; ctx.fillText('Household & Soap',w/2,76);
+  }),
+  signBreakfast: new Texture((ctx,w,h) => {
+    ctx.fillStyle='#fff8e1'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#e65100'; ctx.fillRect(0,0,w,34);
+    ctx.strokeStyle='#e65100'; ctx.lineWidth=3; ctx.strokeRect(2,2,w-4,h-4);
+    ctx.fillStyle='#fff'; ctx.font='bold 16px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('BREAKFAST',w/2,17);
+    ctx.fillStyle='#e65100'; ctx.font='12px sans-serif'; ctx.fillText('Cereal & More',w/2,76);
+  }),
+  signCondiments: new Texture((ctx,w,h) => {
+    ctx.fillStyle='#fffde7'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#f57f17'; ctx.fillRect(0,0,w,34);
+    ctx.strokeStyle='#f57f17'; ctx.lineWidth=3; ctx.strokeRect(2,2,w-4,h-4);
+    ctx.fillStyle='#fff'; ctx.font='bold 14px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('CONDIMENTS',w/2,17);
+    ctx.fillStyle='#f57f17'; ctx.font='12px sans-serif'; ctx.fillText('Sauces & Spreads',w/2,76);
+  }),
+  signBeverages: new Texture((ctx,w,h) => {
+    ctx.fillStyle='#e8eaf6'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#4527a0'; ctx.fillRect(0,0,w,34);
+    ctx.strokeStyle='#4527a0'; ctx.lineWidth=3; ctx.strokeRect(2,2,w-4,h-4);
+    ctx.fillStyle='#fff'; ctx.font='bold 15px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('BEVERAGES',w/2,17);
+    ctx.fillStyle='#4527a0'; ctx.font='12px sans-serif'; ctx.fillText('Coffee & Drinks',w/2,76);
+  }),
 };
 
 const materials = {
@@ -350,7 +411,14 @@ const materials = {
   ceiling:     new Material(textures.ceiling,     0.15, 0.08,  4),
   ceilingLight:new Material(textures.ceilingLight,0.95, 0.15,  4),
   deadFixture: new Material(textures.deadFixture, 0.12, 0.05,  4),
-  exitLight:   new Material(textures.exitLight,   10.0, 0.0,   1),
+  exitLight:     new Material(textures.exitLight,     10.0, 0.0,   1),
+  register:      new Material(textures.register,      0.22, 0.50, 18),
+  signPharmacy:  new Material(textures.signPharmacy,  0.88, 0.20,  8),
+  signBaking:    new Material(textures.signBaking,    0.88, 0.20,  8),
+  signCleaning:  new Material(textures.signCleaning,  0.88, 0.20,  8),
+  signBreakfast: new Material(textures.signBreakfast, 0.88, 0.20,  8),
+  signCondiments:new Material(textures.signCondiments,0.88, 0.20,  8),
+  signBeverages: new Material(textures.signBeverages, 0.88, 0.20,  8),
 };
 
 const entities = [];
@@ -427,39 +495,22 @@ addEntity({ name:'endcap-right-south', type:'shelf', material:materials.shelf, p
 addEntity({ name:'endcap-left-north',  type:'shelf', material:materials.shelf, position:[-9,0.6,-16], scale:[2.5,1.8,1], solid:true });
 addEntity({ name:'endcap-right-north', type:'shelf', material:materials.shelf, position:[ 9,0.6,-16], scale:[2.5,1.8,1], solid:true });
 
+// Dairy / Meat freezers (east wall)
 addEntity({ name:'freezer-1', type:'freezer', material:materials.freezer, position:[24,0.3, -3], scale:[3,1.2,6], solid:true });
 addEntity({ name:'freezer-2', type:'freezer', material:materials.freezer, position:[24,0.3,-13], scale:[3,1.2,6], solid:true });
+
+// Frozen food freezers (west wall)
+addEntity({ name:'freezer-frozen-1', type:'freezer', material:materials.freezer, position:[-24,0.3, -3], scale:[3,1.2,6], solid:true });
+addEntity({ name:'freezer-frozen-2', type:'freezer', material:materials.freezer, position:[-24,0.3,-13], scale:[3,1.2,6], solid:true });
+
+// Registers near front entrance
+addEntity({ name:'register-1', type:'register', material:materials.register, position:[ 6, 0.7, 21], scale:[2.5,1.8,1.5], solid:true });
+addEntity({ name:'register-2', type:'register', material:materials.register, position:[-6, 0.7, 21], scale:[2.5,1.8,1.5], solid:true });
 
 addEntity({ name:'fallen-1', type:'shelf', material:materials.shelf, position:[-4,0.8,-29], scale:[1.6,2.2,5], rotationY: 0.35, rotationZ:Math.PI/2, solid:true });
 addEntity({ name:'fallen-2', type:'shelf', material:materials.shelf, position:[ 4,0.8,-29], scale:[1.6,2.2,5], rotationY:-0.30, rotationZ:Math.PI/2, solid:true });
 
-// ── ITEMS ─────────────────────────────────────────────────────────────────────
-const requiredItemDefs = [
-  { name:'Milk',      pos:[-7.5,1.4, 12], color:'#2196F3' },
-  { name:'Cereal',    pos:[ 7.5,1.4, 12], color:'#FF9800' },
-  { name:'Bread',     pos:[-7.5,1.4,  2], color:'#795548' },
-  { name:'Batteries', pos:[ 7.5,1.4,  2], color:'#9C27B0' },
-  { name:'Soap',      pos:[-7.5,1.4,-11], color:'#4CAF50' },
-  { name:'Coffee',    pos:[ 7.5,1.4,-11], color:'#607D8B' },
-  { name:'Can Soup',  pos:[ 0,  1.4,-28],  color:'#F44336'},
-  { name:'Bandages',  pos:[21,  1.4, -3], color:'#E91E63' },
-];
-const decoyItemDefs = [
-  { name:'Chips',       pos:[-7.5,1.4, 6.5], color:'#FFD600' },
-  { name:'Candy',       pos:[ 7.5,1.4, 6.5], color:'#00BCD4' },
-  { name:'Juice',       pos:[-7.5,1.4,  -5], color:'#8BC34A' },
-  { name:'Crackers',    pos:[ 7.5,1.4,  -5], color:'#FF5722' },
-  { name:'Frozen Peas', pos:[21,  1.4, -13], color:'#03A9F4' },
-  { name:'Soda',        pos:[-6,  1.4, -32], color:'#673AB7' },
-];
-for (const item of requiredItemDefs) {
-  addEntity({ name:item.name, type:'item', material:new Material(makeItemTexture(item.name,item.color),0.3,0.55,28),
-              position:item.pos, scale:[0.7,0.7,0.7], pickable:true, isRequired:true });
-}
-for (const item of decoyItemDefs) {
-  addEntity({ name:item.name, type:'item', material:new Material(makeItemTexture(item.name,item.color),0.3,0.55,28),
-              position:item.pos, scale:[0.7,0.7,0.7], pickable:true, isRequired:false });
-}
+// ── ITEMS, SIGNS & FILLERS built after images preload (see bottom of file) ────
 
 // ── MONSTER ───────────────────────────────────────────────────────────────────
 const monster = addEntity({ name:'monster', type:'monster', material:materials.monster,
@@ -477,7 +528,7 @@ let gameStarted = false;
 // ── GAME STATE ────────────────────────────────────────────────────────────────
 let doorOpened=false, doorOpening=false, doorAngle=0;
 let flickerUntil=0, scareCenter=false, scareCrossAisle=false, scareStorage=false;
-let gameOver=false, victory=false;
+let gameOver=false, victory=false, finalTime=0;
 let monsterStuckTime=0, monsterSideBias=1, patrolIndex=0;
 let bobPhase=0;
 let startTime=performance.now(), lastTime=startTime;
@@ -590,7 +641,7 @@ function moveMonster(dt) {
   const dir=Vec3.normalize(td);
   monster.rotationY=Math.atan2(dir[0],dir[2]);
 
-  const speed=dist>16?1.8:dist>10?3.0:dist>5?3.8:4.5;
+  const speed=dist>16?1.4:dist>10?2.4:dist>5?3.0:3.6;
   const step=Vec3.mul(dir,speed*dt);
   const cand=[monster.position[0]+step[0],monster.position[1],monster.position[2]+step[2]];
 
@@ -647,7 +698,9 @@ function resetGame(){
   player.position=[0,GROUND_Y,22]; player.yaw=Math.PI; player.pitch=0;
   player.velY=0; player.isGrounded=true; player.flashlightOn=true;
   monster.position=[0,1.0,-2];
-  gameOver=false; victory=false;
+  gameOver=false; victory=false; finalTime=0;
+  escapeMsgEl.classList.remove('visible');
+  victoryOverlay.classList.remove('visible');
   doorOpened=false; doorOpening=false; doorAngle=0;
   door.position[0]=0; door.position[1]=1.6; door.position[2]=25.3;
   door.rotationY=0; door.solid=true;
@@ -685,11 +738,16 @@ function updateEvents(nowMs){
     doorOpened=true; doorOpening=true;
     door.solid=false;
     const idx=colliders.indexOf(door); if(idx>=0) colliders.splice(idx,1);
-    setStatus('All items collected! Exit door is opening — reach the south wall!');
+    setStatus('');
+    escapeMsgEl.classList.add('visible');
   }
   if(doorOpened&&pz>30.0&&Math.abs(px)<2.5&&!victory){
-    victory=true; setStatus('You escaped! Press R to play again.');
-    instructionsOverlay.classList.add('visible');
+    victory=true;
+    finalTime=(nowMs-startTime)/1000;
+    escapeMsgEl.classList.remove('visible');
+    victoryTimeEl.textContent=`Time survived: ${finalTime.toFixed(1)}s`;
+    victoryOverlay.classList.add('visible');
+    document.exitPointerLock();
   }
 }
 
@@ -726,6 +784,7 @@ function setupInput(){
   startBtn.addEventListener('click',()=>{
     gameStarted=true; instructionsOverlay.classList.remove('visible'); canvas.requestPointerLock();
   });
+  playAgainBtn.addEventListener('click',()=>{ resetGame(); canvas.requestPointerLock(); });
   document.addEventListener('pointerlockchange',()=>{
     if(document.pointerLockElement===canvas&&!gameOver&&!victory)
       instructionsOverlay.classList.remove('visible');
@@ -813,13 +872,133 @@ function frame(nowMs){
   if(pickupNotifTimer>0){pickupNotifTimer-=dt;if(pickupNotifTimer<=0)pickupNotifEl.classList.remove('visible');}
 
   checkPickupPrompt();
-  const elapsed=(nowMs-startTime)/1000;
+  const elapsed = victory ? finalTime : (nowMs-startTime)/1000;
   timerLabel.textContent=`Time Survived: ${elapsed.toFixed(1)}s`;
 
   draw(nowMs);
   requestAnimationFrame(frame);
 }
 
-setupInput();
-resetGame();
-requestAnimationFrame(frame);
+// ── IMAGE PRELOADER ───────────────────────────────────────────────────────────
+// All PNG images are loaded first; then items, signs, and fillers are created
+// synchronously using ctx.drawImage so textures are guaranteed to be correct.
+const ASSET_KEYS = [
+  'bandages','bread','canofsoup','cereal','coffee','meat','milk','soap',
+  'sausage','flour','candy','chicken','butter','ketchup','mustard','cheese','cream','pasta','peas','icecream','venue',
+];
+const loadedImgs = {};
+
+function imgTex(key) {
+  return new Texture((ctx, w, h) => { ctx.drawImage(loadedImgs[key], 0, 0, w, h); });
+}
+
+// Returns a Material using a PNG if one exists, otherwise a procedural band texture.
+function itemMat(key, name, color) {
+  return key && loadedImgs[key]
+    ? new Material(imgTex(key), 0.35, 0.60, 32)
+    : new Material(makeItemTexture(name, color), 0.30, 0.55, 28);
+}
+
+function buildAndStart() {
+  // ── Required items (every face shows its PNG) ────────────────────────────
+  const requiredItemDefs = [
+    { name:'Milk',        pos:[ 21,  1.4,  -3], key:'milk'      }, // DAIRY
+    { name:'Cereal',      pos:[  7.5,1.4,  12], key:'cereal'    }, // BREAKFAST aisle
+    { name:'Bread',       pos:[ -7.5,1.4,   2], key:'bread'     }, // BAKING aisle
+    { name:'Meat',        pos:[ 21,  1.4, -13], key:'meat'      }, // MEAT
+    { name:'Soap',        pos:[ -7.5,1.4, -11], key:'soap'      }, // CLEANING aisle
+    { name:'Coffee',      pos:[  7.5,1.4, -11], key:'coffee'    }, // BEVERAGES aisle
+    { name:'Can Soup',    pos:[  0,  1.4, -28], key:'canofsoup' }, // Storage
+    { name:'Bandages',    pos:[ -7.5,1.4,  12], key:'bandages'  }, // PHARMACY aisle
+    { name:'Ice Cream',   pos:[-21,  1.4,  -3], key:'icecream'  }, // FROZEN
+    { name:'Frozen Peas', pos:[-21,  1.4, -11], key:'peas'      }, // FROZEN
+  ];
+  for (const item of requiredItemDefs) {
+    addEntity({ name:item.name, type:'item',
+                material:new Material(imgTex(item.key), 0.35, 0.60, 32),
+                position:item.pos, scale:[0.7,0.7,0.7], pickable:true, isRequired:true });
+  }
+
+  // ── Decoy items (pickable but not required) ───────────────────────────────
+  const decoyItemDefs = [
+    { name:'Candy',    pos:[ 7.5,1.4, 6.5], key:'candy'      },
+    { name:'Chips',    pos:[-7.5,1.4, 6.5], color:'#FFD600'  },
+    { name:'Juice',    pos:[-7.5,1.4,  -5], color:'#8BC34A'  },
+    { name:'Crackers', pos:[ 7.5,1.4,  -5], color:'#FF5722'  },
+    { name:'Soda',     pos:[ -6, 1.4, -32], color:'#673AB7'  },
+  ];
+  for (const item of decoyItemDefs) {
+    addEntity({ name:item.name, type:'item',
+                material:itemMat(item.key, item.name, item.color),
+                position:item.pos, scale:[0.7,0.7,0.7], pickable:true, isRequired:false });
+  }
+
+  // ── Section signs (PNG images on the face) ────────────────────────────────
+  addEntity({ name:'sign-dairy',  type:'sign', material:new Material(imgTex('milk'),    0.90, 0.20, 8), position:[ 20, 2.75,  -1.5], scale:[3.2,0.65,0.08] });
+  addEntity({ name:'sign-meat',   type:'sign', material:new Material(imgTex('meat'),    0.90, 0.20, 8), position:[ 20, 2.75, -11.5], scale:[3.2,0.65,0.08] });
+  addEntity({ name:'sign-frozen', type:'sign', material:new Material(imgTex('icecream'),0.90, 0.20, 8), position:[-20, 2.75,  -7  ], scale:[3.2,0.65,0.08] });
+  // Entrance banner using venue.png
+  addEntity({ name:'sign-venue',  type:'sign', material:new Material(imgTex('venue'),   0.90, 0.10, 4), position:[ 0,  3.05,  25.2], scale:[4.5,0.80,0.05] });
+
+  // ── Aisle signs (procedural text textures) ────────────────────────────────
+  addEntity({ name:'sign-pharmacy',   type:'sign', material:materials.signPharmacy,   position:[-9, 2.7,  12], scale:[1.8,0.55,0.08] });
+  addEntity({ name:'sign-baking',     type:'sign', material:materials.signBaking,     position:[-9, 2.7,   1], scale:[1.8,0.55,0.08] });
+  addEntity({ name:'sign-cleaning',   type:'sign', material:materials.signCleaning,   position:[-9, 2.7, -11], scale:[1.8,0.55,0.08] });
+  addEntity({ name:'sign-breakfast',  type:'sign', material:materials.signBreakfast,  position:[ 9, 2.7,  12], scale:[1.8,0.55,0.08] });
+  addEntity({ name:'sign-condiments', type:'sign', material:materials.signCondiments, position:[ 9, 2.7,   1], scale:[1.8,0.55,0.08] });
+  addEntity({ name:'sign-beverages',  type:'sign', material:materials.signBeverages,  position:[ 9, 2.7, -11], scale:[1.8,0.55,0.08] });
+
+  // ── Filler items (decorative, not pickable) ───────────────────────────────
+  const fillerItemDefs = [
+    // Left south – PHARMACY (Bandages required here)
+    { name:'Vitamins',      pos:[-8.5,1.4,  9  ], color:'#80DEEA'  },
+    { name:'Aspirin',       pos:[-8.5,1.4, 14  ], color:'#FF7043'  },
+    // Left mid – BAKING (Bread required here)
+    { name:'Flour',         pos:[-8.5,1.4,  4  ], key:'flour'      },
+    { name:'Pasta',         pos:[-8.5,1.4, -1  ], key:'pasta'      },
+    // Left north – CLEANING (Soap required here)
+    { name:'Bleach',        pos:[-8.5,1.4, -8  ], color:'#DCE6F8'  },
+    { name:'Sponges',       pos:[-8.5,1.4,-13  ], color:'#FFEB3B'  },
+    // Right south – BREAKFAST (Cereal required here)
+    { name:'Granola',       pos:[ 8.5,1.4,  9  ], color:'#D4A55A'  },
+    { name:'Oatmeal',       pos:[ 8.5,1.4, 14  ], color:'#C8A060'  },
+    // Right mid – CONDIMENTS
+    { name:'Ketchup',       pos:[ 8.5,1.4,  4  ], key:'ketchup'    },
+    { name:'Mustard',       pos:[ 8.5,1.4, -1  ], key:'mustard'    },
+    // Right north – BEVERAGES (Coffee required here)
+    { name:'Tea',           pos:[ 8.5,1.4, -8  ], color:'#80CBC4'  },
+    { name:'Hot Cocoa',     pos:[ 8.5,1.4,-13  ], color:'#5D4037'  },
+    // Dairy section (east, near freezer-1)
+    { name:'Butter',        pos:[22.5,1.4,  0.5], key:'butter'     },
+    { name:'Cheese',        pos:[22.5,1.4, -4.5], key:'cheese'     },
+    // Between dairy & meat
+    { name:'Cream',         pos:[22.5,1.4, -7.5], key:'cream'      },
+    // Meat section (east, near freezer-2)
+    { name:'Sausage',       pos:[22.5,1.4,-11.5], key:'sausage'    },
+    { name:'Chicken',       pos:[22.5,1.4,-14.5], key:'chicken'    },
+    // Frozen section (west, near new freezers)
+    { name:'Popsicles',     pos:[-22.5,1.4,  0.5], color:'#FF4081' },
+    { name:'Waffles',       pos:[-22.5,1.4, -7.5], color:'#FFD54F' },
+    { name:'Frozen Pizza',  pos:[-22.5,1.4,-14.5], color:'#AED6F1' },
+  ];
+  for (const item of fillerItemDefs) {
+    addEntity({ name:item.name, type:'item',
+                material:itemMat(item.key, item.name, item.color),
+                position:item.pos, scale:[0.7,0.7,0.7], pickable:false, isRequired:false });
+  }
+
+  setupInput();
+  resetGame();
+  requestAnimationFrame(frame);
+}
+
+// Kick off image loading; buildAndStart fires once every PNG is ready
+let _pending = ASSET_KEYS.length;
+ASSET_KEYS.forEach(key => {
+  const img = new Image();
+  img.onload = img.onerror = () => {
+    if (img.naturalWidth > 0) loadedImgs[key] = img;
+    if (--_pending === 0) buildAndStart();
+  };
+  img.src = `assets/${key}.png`;
+});

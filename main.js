@@ -47,38 +47,22 @@ const Mat4 = {
   },
   translate(m, x, y, z) {
     const t = Mat4.identity();
-    t[12] = x;
-    t[13] = y;
-    t[14] = z;
+    t[12] = x; t[13] = y; t[14] = z;
     return Mat4.multiply(m, t);
   },
   scale(m, x, y, z) {
     const s = Mat4.identity();
-    s[0] = x;
-    s[5] = y;
-    s[10] = z;
+    s[0] = x; s[5] = y; s[10] = z;
     return Mat4.multiply(m, s);
   },
   rotateY(m, a) {
-    const c = Math.cos(a);
-    const s = Math.sin(a);
-    const r = new Float32Array([
-      c, 0, -s, 0,
-      0, 1, 0, 0,
-      s, 0, c, 0,
-      0, 0, 0, 1,
-    ]);
+    const c = Math.cos(a), s = Math.sin(a);
+    const r = new Float32Array([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]);
     return Mat4.multiply(m, r);
   },
   rotateX(m, a) {
-    const c = Math.cos(a);
-    const s = Math.sin(a);
-    const r = new Float32Array([
-      1, 0, 0, 0,
-      0, c, s, 0,
-      0, -s, c, 0,
-      0, 0, 0, 1,
-    ]);
+    const c = Math.cos(a), s = Math.sin(a);
+    const r = new Float32Array([1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1]);
     return Mat4.multiply(m, r);
   },
   lookAt(eye, target, up) {
@@ -95,21 +79,17 @@ const Mat4 = {
 };
 
 const Vec3 = {
-  add(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; },
-  sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; },
-  mul(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; },
-  dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; },
+  add(a, b) { return [a[0]+b[0], a[1]+b[1], a[2]+b[2]]; },
+  sub(a, b) { return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; },
+  mul(a, s) { return [a[0]*s, a[1]*s, a[2]*s]; },
+  dot(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; },
   length(a) { return Math.hypot(a[0], a[1], a[2]); },
   normalize(a) {
     const len = Vec3.length(a) || 1;
-    return [a[0] / len, a[1] / len, a[2] / len];
+    return [a[0]/len, a[1]/len, a[2]/len];
   },
   cross(a, b) {
-    return [
-      a[1] * b[2] - a[2] * b[1],
-      a[2] * b[0] - a[0] * b[2],
-      a[0] * b[1] - a[1] * b[0],
-    ];
+    return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
   },
 };
 
@@ -152,10 +132,8 @@ class Texture {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
     const texCanvas = document.createElement('canvas');
-    texCanvas.width = 128;
-    texCanvas.height = 128;
+    texCanvas.width = 128; texCanvas.height = 128;
     const ctx = texCanvas.getContext('2d');
     canvasGenerator(ctx, texCanvas.width, texCanvas.height);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -167,41 +145,32 @@ class Texture {
 class Mesh {
   constructor(vertices, normals, uvs, indices) {
     this.indexCount = indices.length;
-
     this.vbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-
     this.nbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.nbo);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
-
     this.tbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.tbo);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
-
     this.ibo = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
   }
-
   draw(shader) {
     const posLoc = gl.getAttribLocation(shader.program, 'aPosition');
     const normLoc = gl.getAttribLocation(shader.program, 'aNormal');
     const uvLoc = gl.getAttribLocation(shader.program, 'aUV');
-
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
     gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(posLoc);
-
     gl.bindBuffer(gl.ARRAY_BUFFER, this.nbo);
     gl.vertexAttribPointer(normLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(normLoc);
-
     gl.bindBuffer(gl.ARRAY_BUFFER, this.tbo);
     gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(uvLoc);
-
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
     gl.drawElements(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0);
   }
@@ -217,17 +186,10 @@ class Material {
 }
 
 class Entity {
-  constructor({ name, type, mesh, material, position = [0, 0, 0], scale = [1, 1, 1], rotationY = 0, solid = false, pickable = false }) {
-    this.name = name;
-    this.type = type;
-    this.mesh = mesh;
-    this.material = material;
-    this.position = position;
-    this.scale = scale;
-    this.rotationY = rotationY;
-    this.solid = solid;
-    this.pickable = pickable;
-    this.collected = false;
+  constructor({ name, type, mesh, material, position=[0,0,0], scale=[1,1,1], rotationY=0, solid=false, pickable=false }) {
+    this.name = name; this.type = type; this.mesh = mesh; this.material = material;
+    this.position = position; this.scale = scale; this.rotationY = rotationY;
+    this.solid = solid; this.pickable = pickable; this.collected = false;
   }
   modelMatrix() {
     let m = Mat4.identity();
@@ -237,43 +199,40 @@ class Entity {
     return m;
   }
   aabb() {
-    const half = [this.scale[0] * 0.5, this.scale[1] * 0.5, this.scale[2] * 0.5];
+    const half = [this.scale[0]*0.5, this.scale[1]*0.5, this.scale[2]*0.5];
     return {
-      min: [this.position[0] - half[0], this.position[1] - half[1], this.position[2] - half[2]],
-      max: [this.position[0] + half[0], this.position[1] + half[1], this.position[2] + half[2]],
+      min: [this.position[0]-half[0], this.position[1]-half[1], this.position[2]-half[2]],
+      max: [this.position[0]+half[0], this.position[1]+half[1], this.position[2]+half[2]],
     };
   }
 }
 
 function createCubeMesh() {
   const p = [
-    -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, 1,
-    1, -1, -1, -1, -1, -1, -1, 1, -1, 1, 1, -1,
-    -1, 1, 1, 1, 1, 1, 1, 1, -1, -1, 1, -1,
-    -1, -1, -1, 1, -1, -1, 1, -1, 1, -1, -1, 1,
-    1, -1, 1, 1, -1, -1, 1, 1, -1, 1, 1, 1,
-    -1, -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1,
+    -1,-1, 1,  1,-1, 1,  1, 1, 1, -1, 1, 1,
+     1,-1,-1, -1,-1,-1, -1, 1,-1,  1, 1,-1,
+    -1, 1, 1,  1, 1, 1,  1, 1,-1, -1, 1,-1,
+    -1,-1,-1,  1,-1,-1,  1,-1, 1, -1,-1, 1,
+     1,-1, 1,  1,-1,-1,  1, 1,-1,  1, 1, 1,
+    -1,-1,-1, -1,-1, 1, -1, 1, 1, -1, 1,-1,
   ];
   const n = [
-    0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
-    0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1,
-    0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,
-    0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0,
-    1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
-    -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0,
+    0,0,1, 0,0,1, 0,0,1, 0,0,1,
+    0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1,
+    0,1,0, 0,1,0, 0,1,0, 0,1,0,
+    0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0,
+    1,0,0, 1,0,0, 1,0,0, 1,0,0,
+    -1,0,0, -1,0,0, -1,0,0, -1,0,0,
   ];
   const uv = [
-    0, 0, 1, 0, 1, 1, 0, 1,
-    0, 0, 1, 0, 1, 1, 0, 1,
-    0, 0, 1, 0, 1, 1, 0, 1,
-    0, 0, 1, 0, 1, 1, 0, 1,
-    0, 0, 1, 0, 1, 1, 0, 1,
-    0, 0, 1, 0, 1, 1, 0, 1,
+    0,0,1,0,1,1,0,1, 0,0,1,0,1,1,0,1,
+    0,0,1,0,1,1,0,1, 0,0,1,0,1,1,0,1,
+    0,0,1,0,1,1,0,1, 0,0,1,0,1,1,0,1,
   ];
   const idx = [];
   for (let i = 0; i < 6; i++) {
     const o = i * 4;
-    idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
+    idx.push(o, o+1, o+2, o, o+2, o+3);
   }
   return new Mesh(p, n, uv, idx);
 }
@@ -282,15 +241,12 @@ const vs = `
 attribute vec3 aPosition;
 attribute vec3 aNormal;
 attribute vec2 aUV;
-
 uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProj;
-
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 varying vec2 vUV;
-
 void main() {
   vec4 world = uModel * vec4(aPosition, 1.0);
   vWorldPos = world.xyz;
@@ -302,11 +258,9 @@ void main() {
 
 const fs = `
 precision mediump float;
-
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 varying vec2 vUV;
-
 uniform sampler2D uTex;
 uniform vec3 uCameraPos;
 uniform vec3 uLightDir;
@@ -317,33 +271,27 @@ uniform float uSpecular;
 uniform float uShininess;
 uniform float uTime;
 uniform float uGlobalFlicker;
-
 void main() {
   vec3 baseColor = texture2D(uTex, vUV).rgb;
   vec3 norm = normalize(vNormal);
   vec3 viewDir = normalize(uCameraPos - vWorldPos);
-
   vec3 dirL = normalize(-uLightDir);
   float diffD = max(dot(norm, dirL), 0.0);
   vec3 reflectD = reflect(-dirL, norm);
   float specD = pow(max(dot(viewDir, reflectD), 0.0), uShininess) * uSpecular;
-
   vec3 pointVec = uPointLightPos - vWorldPos;
   float dist = max(length(pointVec), 0.01);
   vec3 pointL = normalize(pointVec);
   float diffP = max(dot(norm, pointL), 0.0) / (1.0 + 0.25 * dist * dist);
   vec3 reflectP = reflect(-pointL, norm);
   float specP = pow(max(dot(viewDir, reflectP), 0.0), uShininess) * uSpecular / (1.0 + 0.25 * dist * dist);
-
   float ambient = uAmbient * uGlobalFlicker;
   float lighting = ambient + diffD * 0.65 + uPointLightOn * diffP;
   vec3 color = baseColor * lighting + vec3(specD + uPointLightOn * specP);
-
   float fogDist = length(uCameraPos - vWorldPos);
   float fogFactor = clamp(exp(-fogDist * 0.048), 0.0, 1.0);
   vec3 fogColor = vec3(0.02, 0.022, 0.028);
   color = mix(fogColor, color, fogFactor);
-
   gl_FragColor = vec4(color, 1.0);
 }
 `;
@@ -353,12 +301,16 @@ const cubeMesh = createCubeMesh();
 
 const textures = {
   floor: new Texture((ctx, w, h) => {
-    ctx.fillStyle = '#6f6f6f';
+    // Linoleum tile pattern
+    ctx.fillStyle = '#d4cfc0';
     ctx.fillRect(0, 0, w, h);
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 8; x++) {
-        ctx.fillStyle = (x + y) % 2 === 0 ? '#878787' : '#5d5d5d';
-        ctx.fillRect(x * 16, y * 16, 16, 16);
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) {
+        ctx.fillStyle = (x+y)%2===0 ? '#ccc9b8' : '#bcb8a8';
+        ctx.fillRect(x*32, y*32, 32, 32);
+        ctx.strokeStyle = '#b0ac9c';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x*32+0.5, y*32+0.5, 31, 31);
       }
     }
   }),
@@ -366,22 +318,30 @@ const textures = {
     ctx.fillStyle = '#8b633f';
     ctx.fillRect(0, 0, w, h);
     ctx.strokeStyle = '#6b4729';
+    ctx.lineWidth = 1.5;
     for (let i = 0; i < 12; i++) {
       ctx.beginPath();
-      ctx.moveTo(0, i * 10 + (i % 2 ? 2 : 0));
-      ctx.lineTo(w, i * 10 + 6);
+      ctx.moveTo(0, i*10+(i%2?2:0));
+      ctx.lineTo(w, i*10+6);
       ctx.stroke();
     }
   }),
   wall: new Texture((ctx, w, h) => {
-    ctx.fillStyle = '#55606c';
+    // Painted cinder block look
+    ctx.fillStyle = '#a8b0b8';
     ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 450; i++) {
-      const x = Math.random() * w;
-      const y = Math.random() * h;
-      const c = 70 + Math.random() * 80;
-      ctx.fillStyle = `rgba(${c}, ${c}, ${c}, 0.2)`;
-      ctx.fillRect(x, y, 3, 3);
+    ctx.strokeStyle = '#8890a0';
+    ctx.lineWidth = 2;
+    for (let row = 0; row < 4; row++) {
+      const offset = row%2===0 ? 0 : 32;
+      for (let col = 0; col < 3; col++) {
+        ctx.strokeRect(col*64 - offset + 2, row*32 + 2, 60, 28);
+      }
+    }
+    for (let i = 0; i < 80; i++) {
+      const x = Math.random()*w, y = Math.random()*h;
+      ctx.fillStyle = `rgba(80,90,100,0.1)`;
+      ctx.fillRect(x, y, 3, 2);
     }
   }),
   label: new Texture((ctx, w, h) => {
@@ -399,47 +359,120 @@ const textures = {
     ctx.fillStyle = '#4f6f54';
     ctx.fillRect(0, 0, w, h);
     for (let i = 0; i < 160; i++) {
-      const x = Math.random() * w;
-      const y = Math.random() * h;
-      ctx.fillStyle = i % 3 === 0 ? '#a53333' : '#38553f';
+      const x = Math.random()*w, y = Math.random()*h;
+      ctx.fillStyle = i%3===0 ? '#a53333' : '#38553f';
       ctx.fillRect(x, y, 6, 6);
     }
   }),
   checkout: new Texture((ctx, w, h) => {
-    ctx.fillStyle = '#353535';
+    ctx.fillStyle = '#2a2a2a';
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#777';
-    ctx.fillRect(0, h * 0.35, w, 10);
-    ctx.fillRect(0, h * 0.65, w, 10);
+    ctx.fillStyle = '#555';
+    ctx.fillRect(0, h*0.3, w, 8);
+    ctx.fillRect(0, h*0.6, w, 8);
+    ctx.fillStyle = '#444';
+    ctx.fillRect(w*0.1, h*0.1, w*0.8, h*0.18);
   }),
   door: new Texture((ctx, w, h) => {
     ctx.fillStyle = '#40472e';
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = '#a8b377';
-    ctx.fillRect(w * 0.75, h * 0.45, 10, 10);
+    ctx.fillRect(w*0.75, h*0.45, 10, 10);
   }),
   ceiling: new Texture((ctx, w, h) => {
-    ctx.fillStyle = '#383838';
+    // Drop ceiling tiles
+    ctx.fillStyle = '#d8d4cc';
     ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 220; i++) {
-      const x = Math.random() * w;
-      const y = Math.random() * h;
-      const c = 45 + Math.floor(Math.random() * 30);
-      ctx.fillStyle = `rgba(${c},${c},${c},0.35)`;
-      ctx.fillRect(x, y, 4, 4);
+    ctx.strokeStyle = '#b0ac9c';
+    ctx.lineWidth = 2;
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) {
+        ctx.strokeRect(x*32+1, y*32+1, 30, 30);
+        for (let i = 0; i < 6; i++) {
+          const px = x*32 + Math.random()*28 + 2;
+          const py = y*32 + Math.random()*28 + 2;
+          ctx.fillStyle = 'rgba(160,156,148,0.4)';
+          ctx.fillRect(px, py, 2, 2);
+        }
+      }
     }
+  }),
+  ceilingLight: new Texture((ctx, w, h) => {
+    ctx.fillStyle = '#e8f0ff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#f4f8ff';
+    ctx.fillRect(6, 8, w-12, h-16);
+    ctx.strokeStyle = '#c0cce0';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(3, 3, w-6, h-6);
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = `rgba(220,235,255,${0.6+i*0.1})`;
+      ctx.fillRect(8, 12+i*28, w-16, 16);
+    }
+  }),
+  produce: new Texture((ctx, w, h) => {
+    ctx.fillStyle = '#2d4a1e';
+    ctx.fillRect(0, 0, w, h);
+    const colors = ['#f4a020', '#e03018', '#38b030', '#f8e020', '#e87820', '#50c840'];
+    for (let i = 0; i < 45; i++) {
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.beginPath();
+      ctx.arc(Math.random()*w, Math.random()*h, 3+Math.random()*6, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(0, h*0.85, w, h*0.15);
+    ctx.fillStyle = '#88cc60';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('PRODUCE', w/2, h*0.94);
+  }),
+  freezer: new Texture((ctx, w, h) => {
+    ctx.fillStyle = '#1a2535';
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = '#2a4060';
+      ctx.fillRect(4, 5+i*30, w-8, 22);
+      ctx.fillStyle = '#6aaedd';
+      ctx.fillRect(6, 7+i*30, w-12, 18);
+      ctx.fillStyle = 'rgba(200,230,255,0.3)';
+      ctx.fillRect(6, 7+i*30, w-12, 6);
+    }
+    ctx.strokeStyle = '#4488bb';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath(); ctx.moveTo(0, i*30); ctx.lineTo(w, i*30); ctx.stroke();
+    }
+  }),
+  aisleSign: new Texture((ctx, w, h) => {
+    ctx.fillStyle = '#1a3060';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(4, 4, w-8, h-8);
+    ctx.fillStyle = '#1a3060';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('AISLE', w/2, h*0.38);
+    ctx.fillStyle = '#cc2222';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText('1', w/2, h*0.68);
   }),
 };
 
 const materials = {
-  floor: new Material(textures.floor, 0.28, 0.25, 8),
-  shelf: new Material(textures.shelf, 0.25, 0.4, 16),
-  wall: new Material(textures.wall, 0.2, 0.35, 12),
-  item: new Material(textures.label, 0.24, 0.55, 28),
-  monster: new Material(textures.monster, 0.2, 0.7, 20),
-  checkout: new Material(textures.checkout, 0.22, 0.45, 14),
-  door: new Material(textures.door, 0.24, 0.45, 18),
-  ceiling: new Material(textures.ceiling, 0.15, 0.08, 4),
+  floor:        new Material(textures.floor,        0.30, 0.20,  8),
+  shelf:        new Material(textures.shelf,        0.25, 0.40, 16),
+  wall:         new Material(textures.wall,         0.22, 0.30, 10),
+  item:         new Material(textures.label,        0.24, 0.55, 28),
+  monster:      new Material(textures.monster,      0.20, 0.70, 20),
+  checkout:     new Material(textures.checkout,     0.22, 0.45, 14),
+  door:         new Material(textures.door,         0.24, 0.45, 18),
+  ceiling:      new Material(textures.ceiling,      0.40, 0.05,  2),
+  ceilingLight: new Material(textures.ceilingLight, 0.95, 0.04,  2),
+  produce:      new Material(textures.produce,      0.30, 0.30, 10),
+  freezer:      new Material(textures.freezer,      0.25, 0.55, 22),
+  aisleSign:    new Material(textures.aisleSign,    0.50, 0.10,  4),
 };
 
 const entities = [];
@@ -454,58 +487,214 @@ function addEntity(opts) {
 
 function makeItemTexture(name) {
   return new Texture((ctx, w, h) => {
-    ctx.fillStyle = '#e8e4d4';
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, 0, w, 22);
-    ctx.fillStyle = '#c8a800';
-    ctx.fillRect(8, 34, w - 16, 30);
+    ctx.fillStyle = '#e8e4d4'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, w, 22);
+    ctx.fillStyle = '#c8a800'; ctx.fillRect(8, 34, w-16, 30);
     ctx.fillStyle = '#111';
     ctx.font = 'bold 13px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(name, w / 2, 49);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#555';
-    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(name, w/2, 49);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#555'; ctx.font = '9px sans-serif';
     ctx.fillText('HAUNTED GROCERY', 10, 14);
   });
 }
 
-addEntity({ name: 'floor', type: 'floor', material: materials.floor, position: [0, -0.6, 0], scale: [44, 1, 44], solid: true });
-addEntity({ name: 'checkout', type: 'checkout', material: materials.checkout, position: [0, 0.6, -16], scale: [12, 2.2, 2], solid: true });
-
-for (const z of [-8, 0, 8]) {
-  addEntity({ name: `shelf-left-${z}`, type: 'shelf', material: materials.shelf, position: [-6, 0.8, z], scale: [1.6, 2.2, 7.5], solid: true });
-  addEntity({ name: `shelf-right-${z}`, type: 'shelf', material: materials.shelf, position: [6, 0.8, z], scale: [1.6, 2.2, 7.5], solid: true });
+function makeDecorItemTexture(name) {
+  return new Texture((ctx, w, h) => {
+    let hash = 0;
+    for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+    const hue = hash % 360;
+    ctx.fillStyle = `hsl(${hue},55%,58%)`;
+    ctx.fillRect(0, 0, w, h);
+    // white label band
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.fillRect(5, Math.floor(h*0.28), w-10, Math.floor(h*0.38));
+    // product name in band
+    ctx.fillStyle = `hsl(${hue},65%,20%)`;
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const first = name.split(' ')[0].substring(0, 9).toUpperCase();
+    ctx.fillText(first, w/2, h*0.47);
+    // dark footer with full name
+    ctx.fillStyle = `hsl(${hue},75%,22%)`;
+    ctx.fillRect(0, Math.floor(h*0.72), w, Math.floor(h*0.28));
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px sans-serif';
+    const words = name.split(' ');
+    if (words.length === 1) {
+      ctx.fillText(name, w/2, h*0.86);
+    } else {
+      ctx.fillText(words.slice(0,2).join(' '), w/2, h*0.86);
+    }
+  });
 }
 
-addEntity({ name: 'wall-north', type: 'wall', material: materials.wall, position: [0, 1.4, -21], scale: [44, 4, 1], solid: true });
-addEntity({ name: 'wall-south', type: 'wall', material: materials.wall, position: [0, 1.4, 21], scale: [44, 4, 1], solid: true });
-addEntity({ name: 'wall-west', type: 'wall', material: materials.wall, position: [-21, 1.4, 0], scale: [1, 4, 44], solid: true });
-addEntity({ name: 'wall-east', type: 'wall', material: materials.wall, position: [21, 1.4, 0], scale: [1, 4, 44], solid: true });
-addEntity({ name: 'ceiling', type: 'ceiling', material: materials.ceiling, position: [0, 3.55, 0], scale: [44, 0.5, 44] });
+function loadImageTexture(name, src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 128;
+      const ctx = c.getContext('2d');
+      // Cream background
+      ctx.fillStyle = '#f5f0e2';
+      ctx.fillRect(0, 0, 128, 128);
+      // Draw product image centered in upper 78% of texture
+      const s = Math.min(112 / img.width, 88 / img.height);
+      const dw = img.width * s, dh = img.height * s;
+      ctx.drawImage(img, (128 - dw) / 2, (90 - dh) / 2, dw, dh);
+      // Dark label bar at bottom with name text
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(0, 100, 128, 28);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(name.toUpperCase(), 64, 114);
+      // Upload to WebGL
+      const handle = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, handle);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      resolve({ handle });
+    };
+    img.onerror = () => resolve(new Texture((ctx, w, h) => {
+      ctx.fillStyle = '#e8e4d4'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, w, 22);
+      ctx.fillStyle = '#c8a800'; ctx.fillRect(8, 34, w-16, 30);
+      ctx.fillStyle = '#111'; ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(name, w/2, 49);
+    }));
+    img.src = src;
+  });
+}
 
-const door = addEntity({ name: 'exit-door', type: 'door', material: materials.door, position: [0, 1.6, 20.3], scale: [3.8, 3.2, 0.5], solid: true });
+// ── SCENE SETUP ────────────────────────────────────────────────────────────────
 
-const shoppingItems = [
-  { name: 'Milk',      pos: [-4.1, 1.9, -8] },
-  { name: 'Cereal',    pos: [4.1,  1.9, -8] },
-  { name: 'Bread',     pos: [-4.1, 1.9,  0] },
-  { name: 'Batteries', pos: [4.1,  1.9,  0] },
-  { name: 'Soap',      pos: [-4.1, 1.9,  8] },
-  { name: 'Coffee',    pos: [4.1,  1.9,  8] },
-  { name: 'Can Soup',  pos: [0,    1.9, -13] },
-  { name: 'Bandages',  pos: [4.1,  1.9,  12] },
+// Floor
+addEntity({ name:'floor', type:'floor', material:materials.floor, position:[0,-0.6,0], scale:[44,1,44], solid:true });
+
+// Walls
+addEntity({ name:'wall-north', type:'wall', material:materials.wall, position:[0,1.4,-21],  scale:[44,4,1],  solid:true });
+addEntity({ name:'wall-south', type:'wall', material:materials.wall, position:[0,1.4,21],   scale:[44,4,1],  solid:true });
+addEntity({ name:'wall-west',  type:'wall', material:materials.wall, position:[-21,1.4,0],  scale:[1,4,44],  solid:true });
+addEntity({ name:'wall-east',  type:'wall', material:materials.wall, position:[21,1.4,0],   scale:[1,4,44],  solid:true });
+addEntity({ name:'ceiling',    type:'ceiling', material:materials.ceiling, position:[0,3.55,0], scale:[44,0.5,44] });
+
+// Exit door (south wall)
+const door = addEntity({ name:'exit-door', type:'door', material:materials.door, position:[0,1.6,20.3], scale:[3.8,3.2,0.5], solid:true });
+
+// Two checkout lanes (near north/back of store)
+addEntity({ name:'checkout-1', type:'checkout', material:materials.checkout, position:[-4,0.6,-15], scale:[5,2.2,2], solid:true });
+addEntity({ name:'checkout-2', type:'checkout', material:materials.checkout, position:[ 4,0.6,-15], scale:[5,2.2,2], solid:true });
+
+// 4 shelf rows × 3 z-segments = 12 gondola units
+// Rows at x = -14, -5, 5, 14 create 3 shopping aisles + outer walkways
+const SHELF_X = [-14, -5, 5, 14];
+const SHELF_Z = [-10, 0, 10];
+for (const x of SHELF_X) {
+  for (const z of SHELF_Z) {
+    addEntity({ name:`shelf-${x}-${z}`, type:'shelf', material:materials.shelf,
+                position:[x, 0.8, z], scale:[1.4, 2.4, 7.0], solid:true });
+  }
+}
+
+// Freezer cases along north (back) wall
+for (let fx = -17; fx <= 17; fx += 6) {
+  addEntity({ name:`freezer-${fx}`, type:'freezer', material:materials.freezer,
+              position:[fx, 0.8, -19.5], scale:[5.5, 2.2, 1.8], solid:true });
+}
+
+// Produce tables flanking the back area
+addEntity({ name:'produce-left',  type:'produce', material:materials.produce, position:[-17.5,0.5,-13], scale:[4,1.6,4], solid:true });
+addEntity({ name:'produce-right', type:'produce', material:materials.produce, position:[ 17.5,0.5,-13], scale:[4,1.6,4], solid:true });
+
+// Ceiling fluorescent light fixtures
+for (const lx of [-9.5, 0, 9.5]) {
+  for (const lz of [-14, -5, 5, 14]) {
+    addEntity({ name:`light-${lx}-${lz}`, type:'light', material:materials.ceilingLight,
+                position:[lx, 3.28, lz], scale:[0.5, 0.08, 2.2] });
+  }
+}
+
+// Hanging aisle number signs
+const aisleSignPositions = [
+  [-9.5, 3.0, -14], [-9.5, 3.0, 0], [-9.5, 3.0, 14],
+  [0,    3.0, -14], [0,    3.0, 0], [0,    3.0, 14],
+  [9.5,  3.0, -14], [9.5,  3.0, 0], [9.5,  3.0, 14],
+];
+for (const [sx, sy, sz] of aisleSignPositions) {
+  addEntity({ name:`sign-${sx}-${sz}`, type:'sign', material:materials.aisleSign,
+              position:[sx, sy, sz], scale:[1.0, 0.6, 0.05] });
+}
+
+// ── DECORATIVE SHELF ITEMS (non-collectible) ──────────────────────────────────
+// rotationY Math.PI/2 makes the box face east/west into the aisles
+const decorDefs = [
+  // Left wall walkway (west face of x=-14 shelf)
+  { name:'Chicken',      pos:[-15.0, 1.65, -10] },
+  { name:'Ground Beef',  pos:[-15.0, 1.45,   0] },
+  { name:'Pork Chops',   pos:[-15.0, 1.65,  10] },
+  // Aisle 1 – east face of x=-14 shelf
+  { name:'Pasta',        pos:[-12.8, 1.65, -10] },
+  { name:'Rice',         pos:[-12.8, 1.45,   0] },
+  { name:'Crackers',     pos:[-12.8, 1.65,  10] },
+  // Aisle 1 – west face of x=-5 shelf
+  { name:'Chips',        pos:[ -6.0, 1.65, -10] },
+  { name:'Salsa',        pos:[ -6.0, 1.45,   0] },
+  { name:'Popcorn',      pos:[ -6.0, 1.65,  10] },
+  // Center aisle – east face of x=-5 shelf
+  { name:'Peanut Butter',pos:[ -3.9, 1.65, -10] },
+  { name:'Jelly',        pos:[ -3.9, 1.45,   0] },
+  { name:'Mac & Cheese', pos:[ -3.9, 1.65,  10] },
+  // Center aisle – west face of x=5 shelf
+  { name:'Ketchup',      pos:[  3.9, 1.65, -10] },
+  { name:'Mustard',      pos:[  3.9, 1.45,   0] },
+  { name:'Pickles',      pos:[  3.9, 1.65,  10] },
+  // Aisle 2 – east face of x=5 shelf
+  { name:'Butter',       pos:[  6.0, 1.65, -10] },
+  { name:'Eggs',         pos:[  6.0, 1.45,   0] },
+  { name:'Yogurt',       pos:[  6.0, 1.65,  10] },
+  // Aisle 2 – west face of x=14 shelf
+  { name:'Frozen Pizza', pos:[ 12.8, 1.65, -10] },
+  { name:'Ice Cream',    pos:[ 12.8, 1.45,   0] },
+  { name:'Fish Sticks',  pos:[ 12.8, 1.65,  10] },
+  // Right wall walkway (east face of x=14 shelf)
+  { name:'Orange Juice', pos:[ 15.0, 1.65, -10] },
+  { name:'Lemonade',     pos:[ 15.0, 1.45,   0] },
+  { name:'Green Beans',  pos:[ 15.0, 1.65,  10] },
 ];
 
-for (const item of shoppingItems) {
-  const itemMat = new Material(makeItemTexture(item.name), 0.3, 0.55, 28);
-  addEntity({ name: item.name, type: 'item', material: itemMat, position: item.pos, scale: [0.7, 0.7, 0.7], pickable: true });
+for (const dd of decorDefs) {
+  const mat = new Material(makeDecorItemTexture(dd.name), 0.28, 0.40, 14);
+  addEntity({ name:dd.name, type:'decor', material:mat,
+              position:dd.pos, scale:[0.44, 0.58, 0.13], rotationY: Math.PI/2 });
 }
 
-const monster = addEntity({ name: 'monster', type: 'monster', material: materials.monster, position: [0, 1.0, -2], scale: [1.6, 2.4, 1.6], solid: true });
+// ── COLLECTIBLE SHOPPING ITEMS ────────────────────────────────────────────────
+// Spread across all 4 aisles. PNG images loaded async in init().
+const shoppingItemDefs = [
+  { name:'Milk',      pos:[-12.8, 1.7, -10], src: null },
+  { name:'Cereal',    pos:[ -3.9, 1.7, -10], src:'assets/cereal.png' },
+  { name:'Bread',     pos:[  3.9, 1.7,  -9], src:'assets/bread.png' },
+  { name:'Batteries', pos:[ 12.8, 1.7,   0], src: null },
+  { name:'Soap',      pos:[-12.8, 1.7,  10], src:'assets/soap.png' },
+  { name:'Coffee',    pos:[ -3.9, 1.7,  10], src:'assets/coffee.png' },
+  { name:'Can Soup',  pos:[  3.9, 1.7,  10], src:'assets/canofsoup.png' },
+  { name:'Bandages',  pos:[ 12.8, 1.7, -10], src:'assets/bandages.png' },
+];
+
+// Monster
+const monster = addEntity({ name:'monster', type:'monster', material:materials.monster,
+                             position:[0,1.0,-8], scale:[1.6,2.4,1.6], solid:true });
+
+// ── GAME STATE ────────────────────────────────────────────────────────────────
 
 const GRAVITY = 16;
 const JUMP_VEL = 6.5;
@@ -524,9 +713,8 @@ const player = {
   isGrounded: true,
 };
 
-const input = { w: false, a: false, s: false, d: false, arrowleft: false, arrowright: false, ' ': false };
+const input = { w:false, a:false, s:false, d:false, arrowleft:false, arrowright:false, ' ':false };
 let gameStarted = false;
-
 let doorOpened = false;
 let flickerUntil = 0;
 let scareTriggered = false;
@@ -539,7 +727,7 @@ let lastTime = startTime;
 
 function updateListUI() {
   hudList.innerHTML = '';
-  const items = entities.filter((e) => e.pickable);
+  const items = entities.filter(e => e.pickable);
   for (const item of items) {
     const li = document.createElement('li');
     li.textContent = item.name;
@@ -548,17 +736,14 @@ function updateListUI() {
   }
 }
 
-function setStatus(text) {
-  statusLabel.textContent = text;
-}
+function setStatus(text) { statusLabel.textContent = text; }
 
 function allItemsCollected() {
-  return entities.filter((e) => e.pickable).every((e) => e.collected);
+  return entities.filter(e => e.pickable).every(e => e.collected);
 }
 
 function rayAABB(origin, dir, aabb, maxDist) {
-  let tmin = 0;
-  let tmax = maxDist;
+  let tmin = 0, tmax = maxDist;
   for (let i = 0; i < 3; i++) {
     if (Math.abs(dir[i]) < 0.0001) {
       if (origin[i] < aabb.min[i] || origin[i] > aabb.max[i]) return null;
@@ -583,7 +768,7 @@ function playerCollides(pos, padding = player.radius) {
     const nearestZ = Math.max(a.min[2], Math.min(pos[2], a.max[2]));
     const dx = pos[0] - nearestX;
     const dz = pos[2] - nearestZ;
-    if (dx * dx + dz * dz < padding * padding && pos[1] > a.min[1] - 0.8 && pos[1] < a.max[1] + 0.8) {
+    if (dx*dx + dz*dz < padding*padding && pos[1] > a.min[1]-0.8 && pos[1] < a.max[1]+0.8) {
       return true;
     }
   }
@@ -591,7 +776,7 @@ function playerCollides(pos, padding = player.radius) {
 }
 
 function movePlayer(dt) {
-  if (input.arrowleft) player.yaw += player.turnSpeed * dt;
+  if (input.arrowleft)  player.yaw += player.turnSpeed * dt;
   if (input.arrowright) player.yaw -= player.turnSpeed * dt;
 
   if (player.isGrounded && input[' ']) {
@@ -610,7 +795,7 @@ function movePlayer(dt) {
 
   const forward = [Math.sin(player.yaw), 0, Math.cos(player.yaw)];
   const right = [-Math.cos(player.yaw), 0, Math.sin(player.yaw)];
-  let wish = [0, 0, 0];
+  let wish = [0,0,0];
   if (input.w) wish = Vec3.add(wish, forward);
   if (input.s) wish = Vec3.sub(wish, forward);
   if (input.a) wish = Vec3.sub(wish, right);
@@ -618,9 +803,9 @@ function movePlayer(dt) {
   wish = Vec3.normalize(wish);
 
   const move = Vec3.mul(wish, player.speed * dt);
-  const nextX = [player.position[0] + move[0], player.position[1], player.position[2]];
+  const nextX = [player.position[0]+move[0], player.position[1], player.position[2]];
   if (!playerCollides(nextX)) player.position[0] = nextX[0];
-  const nextZ = [player.position[0], player.position[1], player.position[2] + move[2]];
+  const nextZ = [player.position[0], player.position[1], player.position[2]+move[2]];
   if (!playerCollides(nextZ)) player.position[2] = nextZ[2];
 }
 
@@ -628,9 +813,9 @@ function monsterHits(pos) {
   for (const c of colliders) {
     if (c === monster || (c === door && doorOpened)) continue;
     const a = c.aabb();
-    if (pos[0] > a.min[0] - 0.85 && pos[0] < a.max[0] + 0.85 &&
-        pos[2] > a.min[2] - 0.85 && pos[2] < a.max[2] + 0.85 &&
-        pos[1] > a.min[1] - 0.8  && pos[1] < a.max[1] + 0.8) return true;
+    if (pos[0]>a.min[0]-0.85 && pos[0]<a.max[0]+0.85 &&
+        pos[2]>a.min[2]-0.85 && pos[2]<a.max[2]+0.85 &&
+        pos[1]>a.min[1]-0.8  && pos[1]<a.max[1]+0.8) return true;
   }
   return false;
 }
@@ -641,9 +826,10 @@ function moveMonster(dt) {
   const dir = Vec3.normalize([toPlayer[0], 0, toPlayer[2]]);
   monster.rotationY = Math.atan2(dir[0], dir[2]);
 
-  const speed = dist > 10 ? 3.0 : dist > 5 ? 3.8 : 4.5;
+  // Reduced speed — noticeably slower than before
+  const speed = dist > 10 ? 1.8 : dist > 5 ? 2.6 : 3.2;
   const step = Vec3.mul(dir, speed * dt);
-  const candidate = [monster.position[0] + step[0], monster.position[1], monster.position[2] + step[2]];
+  const candidate = [monster.position[0]+step[0], monster.position[1], monster.position[2]+step[2]];
 
   if (!monsterHits(candidate)) {
     monster.position[0] = candidate[0];
@@ -655,15 +841,11 @@ function moveMonster(dt) {
       monsterSideBias = -monsterSideBias;
       monsterStuckTime = 0;
     }
-    const angles = [
-      0.5 * monsterSideBias, -0.5 * monsterSideBias,
-      1.05 * monsterSideBias, -1.05 * monsterSideBias,
-      1.57, -1.57,
-    ];
+    const angles = [0.5*monsterSideBias, -0.5*monsterSideBias, 1.05*monsterSideBias, -1.05*monsterSideBias, 1.57, -1.57];
     for (const ang of angles) {
       const cos = Math.cos(ang), sin = Math.sin(ang);
-      const altDir = [dir[0] * cos - dir[2] * sin, 0, dir[0] * sin + dir[2] * cos];
-      const alt = Vec3.add(monster.position, Vec3.mul(altDir, speed * dt));
+      const altDir = [dir[0]*cos - dir[2]*sin, 0, dir[0]*sin + dir[2]*cos];
+      const alt = Vec3.add(monster.position, Vec3.mul(altDir, speed*dt));
       alt[1] = monster.position[1];
       if (!monsterHits(alt)) {
         monster.position[0] = alt[0];
@@ -689,7 +871,7 @@ function getNearbyItem(range = 3.5) {
     const dz = e.position[2] - player.position[2];
     const dist = Math.hypot(dx, dz);
     if (dist < bestDist) {
-      const dot = (dx / dist) * forward[0] + (dz / dist) * forward[2];
+      const dot = (dx/dist)*forward[0] + (dz/dist)*forward[2];
       if (dot > 0.2) { bestDist = dist; best = e; }
     }
   }
@@ -723,7 +905,7 @@ function resetGame() {
   player.velY = 0;
   player.isGrounded = true;
   player.flashlightOn = true;
-  monster.position = [0, 1.0, -2];
+  monster.position = [0, 1.0, -8];
   gameOver = false;
   victory = false;
   doorOpened = false;
@@ -736,7 +918,7 @@ function resetGame() {
   monsterSideBias = 1;
   startTime = performance.now();
   setStatus('Collect the full list. Stay away from the monster.');
-  entities.filter((e) => e.pickable).forEach((e) => { e.collected = false; });
+  entities.filter(e => e.pickable).forEach(e => { e.collected = false; });
   updateListUI();
   if (gameStarted) instructionsOverlay.classList.remove('visible');
 }
@@ -749,8 +931,8 @@ function checkPickupPrompt() {
 
 function updateEvents(nowMs) {
   const now = nowMs / 1000;
-  const nearAisleCenter = Math.abs(player.position[0]) < 2.3 && Math.abs(player.position[2]) < 2.3;
-  if (nearAisleCenter && !scareTriggered) {
+  const nearCenter = Math.abs(player.position[0]) < 5.0 && Math.abs(player.position[2]) < 3.0;
+  if (nearCenter && !scareTriggered) {
     scareTriggered = true;
     flickerUntil = now + 4.5;
     setStatus('Lights flicker... something is hunting you.');
@@ -774,9 +956,7 @@ function updateEvents(nowMs) {
 
 function worldFlicker(nowMs) {
   const t = nowMs / 1000;
-  if (t < flickerUntil) {
-    return 0.35 + 0.65 * Math.abs(Math.sin(t * 19.0));
-  }
+  if (t < flickerUntil) return 0.35 + 0.65 * Math.abs(Math.sin(t * 19.0));
   return 1.0;
 }
 
@@ -790,31 +970,24 @@ function setupInput() {
       player.flashlightOn = !player.flashlightOn;
       setStatus(player.flashlightOn ? 'Flashlight ON' : 'Flashlight OFF');
     }
-    if (k === 'r') {
-      resetGame();
-    }
+    if (k === 'r') resetGame();
   });
   document.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase();
     if (k in input) input[k] = false;
   });
-
   document.addEventListener('mousemove', (e) => {
     if (document.pointerLockElement !== canvas) return;
     player.yaw -= e.movementX * 0.002;
     player.pitch -= e.movementY * 0.002;
     player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch));
   });
-
-  canvas.addEventListener('click', () => {
-    if (gameStarted) canvas.requestPointerLock();
-  });
+  canvas.addEventListener('click', () => { if (gameStarted) canvas.requestPointerLock(); });
   startBtn.addEventListener('click', () => {
     gameStarted = true;
     instructionsOverlay.classList.remove('visible');
     canvas.requestPointerLock();
   });
-
   document.addEventListener('pointerlockchange', () => {
     if (document.pointerLockElement === canvas && !gameOver && !victory) {
       instructionsOverlay.classList.remove('visible');
@@ -824,11 +997,10 @@ function setupInput() {
 
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const width = Math.floor(canvas.clientWidth * dpr);
+  const width  = Math.floor(canvas.clientWidth  * dpr);
   const height = Math.floor(canvas.clientHeight * dpr);
   if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = width; canvas.height = height;
     gl.viewport(0, 0, width, height);
   }
 }
@@ -848,14 +1020,14 @@ function draw(nowMs) {
     Math.sin(player.pitch),
     Math.cos(player.yaw) * Math.cos(player.pitch),
   ];
-  const eye = [player.position[0], player.position[1] + 0.4, player.position[2]];
+  const eye = [player.position[0], player.position[1]+0.4, player.position[2]];
   const target = Vec3.add(eye, lookDir);
-  const view = Mat4.lookAt(eye, target, [0, 1, 0]);
+  const view = Mat4.lookAt(eye, target, [0,1,0]);
 
   gl.uniformMatrix4fv(shader.u('uView'), false, view);
   gl.uniformMatrix4fv(shader.u('uProj'), false, proj);
   gl.uniform3fv(shader.u('uCameraPos'), new Float32Array(eye));
-  gl.uniform3fv(shader.u('uLightDir'), new Float32Array([0.5, -1.0, 0.3]));
+  gl.uniform3fv(shader.u('uLightDir'),  new Float32Array([0.5,-1.0,0.3]));
   gl.uniform1f(shader.u('uPointLightOn'), player.flashlightOn ? 1.0 : 0.0);
   gl.uniform3fv(shader.u('uPointLightPos'), new Float32Array(eye));
   gl.uniform1f(shader.u('uGlobalFlicker'), worldFlicker(nowMs));
@@ -864,9 +1036,9 @@ function draw(nowMs) {
   for (const e of entities) {
     if (e.pickable && e.collected) continue;
     gl.uniformMatrix4fv(shader.u('uModel'), false, e.modelMatrix());
-    gl.uniform1f(shader.u('uAmbient'), e.material.ambient);
-    gl.uniform1f(shader.u('uSpecular'), e.material.specular);
-    gl.uniform1f(shader.u('uShininess'), e.material.shininess);
+    gl.uniform1f(shader.u('uAmbient'),    e.material.ambient);
+    gl.uniform1f(shader.u('uSpecular'),   e.material.specular);
+    gl.uniform1f(shader.u('uShininess'),  e.material.shininess);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, e.material.texture.handle);
     gl.uniform1i(shader.u('uTex'), 0);
@@ -894,7 +1066,6 @@ function frame(nowMs) {
   }
 
   checkPickupPrompt();
-
   const elapsed = (nowMs - startTime) / 1000;
   timerLabel.textContent = `Time Survived: ${elapsed.toFixed(1)}s`;
 
@@ -902,6 +1073,24 @@ function frame(nowMs) {
   requestAnimationFrame(frame);
 }
 
-setupInput();
-resetGame();
-requestAnimationFrame(frame);
+// ── INIT (async to load PNG textures) ─────────────────────────────────────────
+
+async function init() {
+  for (const def of shoppingItemDefs) {
+    let tex;
+    if (def.src) {
+      tex = await loadImageTexture(def.name, def.src);
+    } else {
+      tex = makeItemTexture(def.name);
+    }
+    const itemMat = new Material(tex, 0.32, 0.55, 28);
+    addEntity({ name:def.name, type:'item', material:itemMat,
+                position:def.pos, scale:[0.7,0.7,0.7], pickable:true });
+  }
+
+  setupInput();
+  resetGame();
+  requestAnimationFrame(frame);
+}
+
+init();

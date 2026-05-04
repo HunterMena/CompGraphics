@@ -179,6 +179,36 @@ button {
   margin: 10px 0 18px;
 }
 
+.gameover-card {
+  text-align: center;
+}
+
+.gameover-card h2 {
+  font-size: 2rem;
+  color: #ff4444;
+  margin: 0 0 12px;
+}
+
+.gameover-card p {
+  font-size: 1.05rem;
+  margin: 6px 0;
+  color: #ddd;
+}
+
+#gameOverTime {
+  font-size: 1.2rem;
+  color: #aaa;
+  margin: 10px 0 18px;
+}
+
+#gameOverOverlay .card button {
+  background: #8b2222;
+}
+
+#gameOverOverlay .card button:hover {
+  background: #b02a2a;
+}
+
 #vignette {
   position: fixed;
   inset: 0;

@@ -12,6 +12,8 @@ const escapeMsgEl = document.getElementById('escapeMsg');
 const victoryOverlay = document.getElementById('victoryOverlay');
 const victoryTimeEl = document.getElementById('victoryTime');
 const playAgainBtn = document.getElementById('playAgainBtn');
+const gameOverOverlay = document.getElementById('gameOverOverlay');
+const gameOverTimeEl = document.getElementById('gameOverTime');
 
 const DEG2RAD = Math.PI / 180;
 
@@ -200,6 +202,32 @@ function createCubeMesh() {
   return new Mesh(p, n, uv, idx);
 }
 
+function createCylinderMesh(nSides=10) {
+  const p=[], n=[], uv=[], idx=[];
+  let base=0;
+  for (let i=0;i<10;i++){
+    const a0=(i/10)*Math.PI*2, a1=((i+1)/10)*Math.PI*2;
+    const c0=Math.cos(a0), s0=Math.sin(a0), c1=Math.cos(a1), s1=Math.sin(a1);
+    p.push(c0*0.5,-0.5,s0*0.5); n.push(c0,0,s0); uv.push(i/10,0);
+    p.push(c1*0.5,-0.5,s1*0.5); n.push(c1,0,s1); uv.push((i+1)/10,0);
+    p.push(c0*0.5, 0.5,s0*0.5); n.push(c0,0,s0); uv.push(i/10,1);
+    p.push(c1*0.5, 0.5,s1*0.5); n.push(c1,0,s1); uv.push((i+1)/10,1);
+    idx.push(base,base+1,base+2, base+1,base+3,base+2);
+    base+=4;
+    p.push(0,0.5,0); n.push(0,1,0); uv.push(0.5,0.5);
+    p.push(c0*0.5,0.5,s0*0.5); n.push(0,1,0); uv.push((c0+1)*0.25,(s0+1)*0.25);
+    p.push(c1*0.5,0.5,s1*0.5); n.push(0,1,0); uv.push((c1+1)*0.25,(s1+1)*0.25);
+    idx.push(base,base+1,base+2);
+    base+=3;
+    p.push(0,-0.5,0); n.push(0,-1,0); uv.push(0.5,0.5);
+    p.push(c0*0.5,-0.5,s0*0.5); n.push(0,-1,0); uv.push((c0+1)*0.25,(s0+1)*0.25);
+    p.push(c1*0.5,-0.5,s1*0.5); n.push(0,-1,0); uv.push((c1+1)*0.25,(s1+1)*0.25);
+    idx.push(base,base+2,base+1);
+    base+=3;
+  }
+  return new Mesh(p,n,uv,idx);
+}
+
 // ── SHADERS ───────────────────────────────────────────────────────────────────
 
 const vs = `
@@ -227,9 +255,11 @@ uniform vec3 uPointLightPos[4];
 uniform vec3 uPointLightColor[4];
 uniform float uPointLightOn[4];
 uniform float uAmbient, uSpecular, uShininess, uTime, uGlobalFlicker;
+uniform float uAlpha;
 
 void main() {
-  vec3 baseColor = texture2D(uTex, vUV).rgb;
+  vec4 texSample = texture2D(uTex, vUV);
+  vec3 baseColor = texSample.rgb;
   vec3 norm = normalize(vNormal);
   vec3 viewDir = normalize(uCameraPos - vWorldPos);
 
@@ -257,11 +287,81 @@ void main() {
   float fogFactor = clamp(exp(-fogDist * 0.048), 0.0, 1.0);
   color = mix(vec3(0.02, 0.022, 0.028), color, fogFactor);
 
-  gl_FragColor = vec4(color, 1.0);
+  gl_FragColor = vec4(color, texSample.a * uAlpha);
 }`;
 
 const shader = new ShaderProgram(vs, fs);
 const cubeMesh = createCubeMesh();
+const cylinderMesh = createCylinderMesh();
+
+// ── DUST PARTICLES ────────────────────────────────────────────────────────────
+const dustTex = new Texture((ctx, w, h) => {
+  const grd = ctx.createRadialGradient(w/2, h/2, 0, w/2, h/2, w/2);
+  grd.addColorStop(0, 'rgba(210,200,190,1)');
+  grd.addColorStop(0.6, 'rgba(200,190,180,0.6)');
+  grd.addColorStop(1, 'rgba(190,180,170,0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, w, h);
+});
+const dustMat = new Material(dustTex, 1.2, 0.0, 1);
+
+const particles = [];
+for (let i = 0; i < 200; i++) {
+  particles.push({
+    x: (Math.random() - 0.5) * 48,
+    y: Math.random() * 3.0,
+    z: Math.random() * 58 - 32,
+    vx: (Math.random() - 0.5) * 0.35,
+    vy: (Math.random() - 0.5) * 0.06,
+    vz: (Math.random() - 0.5) * 0.35,
+    alpha: 0.22 + Math.random() * 0.28,
+    size: 0.12 + Math.random() * 0.13,
+  });
+}
+
+function updateParticles(dt) {
+  for (const p of particles) {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.z += p.vz * dt;
+    if (p.x < -24) p.x = 24;
+    if (p.x >  24) p.x = -24;
+    if (p.y <  0)  p.y = 3.0;
+    if (p.y > 3.2) p.y = 0;
+    if (p.z < -32) p.z = 25;
+    if (p.z >  25) p.z = -32;
+  }
+}
+
+function drawParticles(view) {
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, dustMat.texture.handle);
+  gl.uniform1i(shader.u('uTex'), 0);
+  gl.uniform1f(shader.u('uAmbient'), 1.2);
+  gl.uniform1f(shader.u('uSpecular'), 0.0);
+  gl.uniform1f(shader.u('uShininess'), 1.0);
+
+  for (const p of particles) {
+    const s = p.size;
+    // Spherical billboard: upper-left 3x3 of model = transpose of view's 3x3
+    const m = new Float32Array([
+      view[0]*s, view[4]*s, view[8]*s, 0,
+      view[1]*s, view[5]*s, view[9]*s, 0,
+      view[2]*s, view[6]*s, view[10]*s, 0,
+      p.x, p.y, p.z, 1,
+    ]);
+    gl.uniformMatrix4fv(shader.u('uModel'), false, m);
+    gl.uniform1f(shader.u('uAlpha'), p.alpha);
+    cubeMesh.draw(shader);
+  }
+
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+}
 
 // ── CEILING LIGHT DEFINITIONS ─────────────────────────────────────────────────
 const CEILING_LIGHTS = [
@@ -515,6 +615,10 @@ addEntity({ name:'fallen-2', type:'shelf', material:materials.shelf, position:[ 
 // ── MONSTER ───────────────────────────────────────────────────────────────────
 const monster = addEntity({ name:'monster', type:'monster', material:materials.monster,
                             position:[0,1.0,-2], scale:[1.6,2.4,1.6], solid:true });
+const monsterArmL = addEntity({ name:'monster-arm-l', type:'monster', material:materials.monster,
+                            position:[0,1.0,-2], scale:[0.6,1.8,0.6], solid:false });
+const monsterArmR = addEntity({ name:'monster-arm-r', type:'monster', material:materials.monster,
+                            position:[0,1.0,-2], scale:[0.6,1.8,0.6], solid:false });
 
 // ── PLAYER STATE ──────────────────────────────────────────────────────────────
 const GRAVITY=16, JUMP_VEL=6.5, GROUND_Y=1.0;
@@ -660,10 +764,25 @@ function moveMonster(dt) {
     }
   }
 
+  // Arms follow torso each frame (cosY/sinY are the monster's right vector in XZ)
+  const cosY = Math.cos(monster.rotationY);
+  const sinY = Math.sin(monster.rotationY);
+  const ARM_SIDE = 1.35;  // offset past torso half-width 0.8 → 0.55 units of arm visible
+  monsterArmL.position[0] = monster.position[0] - cosY * ARM_SIDE;
+  monsterArmL.position[1] = monster.position[1] + 0.35;
+  monsterArmL.position[2] = monster.position[2] + sinY * ARM_SIDE;
+  monsterArmR.position[0] = monster.position[0] + cosY * ARM_SIDE;
+  monsterArmR.position[1] = monster.position[1] + 0.35;
+  monsterArmR.position[2] = monster.position[2] - sinY * ARM_SIDE;
+  monsterArmL.rotationY = monster.rotationY;
+  monsterArmR.rotationY = monster.rotationY;
+
   if(dist<1.4&&!gameOver&&!victory){
     gameOver=true;
-    setStatus('The monster caught you. Press R to restart.');
-    instructionsOverlay.classList.add('visible');
+    finalTime=(performance.now()-startTime)/1000;
+    gameOverTimeEl.textContent=`Time survived: ${finalTime.toFixed(1)}s`;
+    gameOverOverlay.classList.add('visible');
+    document.exitPointerLock();
   }
 }
 
@@ -701,6 +820,7 @@ function resetGame(){
   gameOver=false; victory=false; finalTime=0;
   escapeMsgEl.classList.remove('visible');
   victoryOverlay.classList.remove('visible');
+  gameOverOverlay.classList.remove('visible');
   doorOpened=false; doorOpening=false; doorAngle=0;
   door.position[0]=0; door.position[1]=1.6; door.position[2]=25.3;
   door.rotationY=0; door.solid=true;
@@ -785,6 +905,7 @@ function setupInput(){
     gameStarted=true; instructionsOverlay.classList.remove('visible'); canvas.requestPointerLock();
   });
   playAgainBtn.addEventListener('click',()=>{ resetGame(); canvas.requestPointerLock(); });
+  document.getElementById('restartBtn').addEventListener('click',()=>{ resetGame(); canvas.requestPointerLock(); });
   document.addEventListener('pointerlockchange',()=>{
     if(document.pointerLockElement===canvas&&!gameOver&&!victory)
       instructionsOverlay.classList.remove('visible');
@@ -839,6 +960,7 @@ function draw(nowMs){
   gl.uniform3fv(shader.u('uPointLightColor[0]'),lCol);
   gl.uniform1fv(shader.u('uPointLightOn[0]'),lOn);
 
+  gl.uniform1f(shader.u('uAlpha'), 1.0);
   for(const e of entities){
     if(e.pickable&&e.collected) continue;
     gl.uniformMatrix4fv(shader.u('uModel'),false,e.modelMatrix());
@@ -850,6 +972,8 @@ function draw(nowMs){
     gl.uniform1i(shader.u('uTex'),0);
     e.mesh.draw(shader);
   }
+
+  drawParticles(view);
 }
 
 function frame(nowMs){
@@ -858,6 +982,7 @@ function frame(nowMs){
 
   if(gameStarted&&!gameOver&&!victory){
     movePlayer(dt); moveMonster(dt); updateEvents(nowMs); updateVignette();
+    updateParticles(dt);
   }
 
   if(doorOpening&&doorAngle<Math.PI/2){
@@ -913,8 +1038,10 @@ function buildAndStart() {
     { name:'Ice Cream',   pos:[-21,  1.4,  -3], key:'icecream'  }, // FROZEN
     { name:'Frozen Peas', pos:[-21,  1.4, -11], key:'peas'      }, // FROZEN
   ];
+  const CYLINDER_ITEMS = new Set(['Milk', 'Can Soup']);
   for (const item of requiredItemDefs) {
     addEntity({ name:item.name, type:'item',
+                mesh: CYLINDER_ITEMS.has(item.name) ? cylinderMesh : cubeMesh,
                 material:new Material(imgTex(item.key), 0.35, 0.60, 32),
                 position:item.pos, scale:[0.7,0.7,0.7], pickable:true, isRequired:true });
   }

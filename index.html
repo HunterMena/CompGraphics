@@ -1,65 +1,301 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Haunted Grocery Run - WebGL</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <canvas id="glCanvas"></canvas>
+<!DOCTYPE html>
+    <head>
+        <title>Haunted Grocery Run - WebGL</title>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="icon" href="data:,">
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <script src="WebGL.js"></script>
+    <script src="Functions.js"></script>
+    <script src="Classes.js"></script>
+    <script src="Objects.js"></script>
+    <body>
+        <canvas id="glCanvas"></canvas>
 
-  <div id="hud">
-    <h1>Haunted Grocery Run</h1>
-    <p id="objective">Objective: Collect all list items, avoid the monster, and reach the exit.</p>
-    <ul id="shoppingList"></ul>
-    <p id="status"></p>
-    <p id="timer"></p>
-  </div>
+        <div id="hud">
+            <h1>Haunted Grocery Run</h1>
+            <p id="objective">Objective: Collect all list items, avoid the monster, and reach the exit.</p>
+            <ul id="shoppingList"></ul>
+            <p id="status"></p>
+            <p id="timer"></p>
+        </div>
 
-  <div id="instructions" class="overlay visible">
-    <div class="card">
-      <h2>Controls</h2>
-      <ul>
-        <li><strong>WASD</strong>: Move</li>
-        <li><strong>Space</strong>: Jump</li>
-        <li><strong>Mouse</strong>: Look around</li>
-        <li><strong>← →</strong>: Turn (no mouse needed)</li>
-        <li><strong>E</strong>: Pick up item</li>
-        <li><strong>F</strong>: Toggle flashlight</li>
-        <li><strong>R</strong>: Restart</li>
-      </ul>
-      <p>Press <strong>Start</strong> to begin. Click the game to re-enable mouse look.</p>
-      <button id="startBtn">Start</button>
-    </div>
-  </div>
+        <div id="instructions" class="overlay visible">
+            <div class="card">
+                <h2>Controls</h2>
+                <ul>
+                    <li><strong>WASD</strong>: Move</li>
+                    <li><strong>Space</strong>: Jump</li>
+                    <li><strong>Mouse</strong>: Look around</li>
+                    <li><strong>← →</strong>: Turn (no mouse needed)</li>
+                    <li><strong>E</strong>: Pick up item</li>
+                    <li><strong>F</strong>: Toggle flashlight</li>
+                    <li><strong>R</strong>: Restart</li>
+                </ul>
+                <p>Press <strong>Start</strong> to begin. Click the game to re-enable mouse look.</p>
+                <button id="startBtn">Start</button>
+            </div>
+        </div>
 
-  <div id="escapeMsg">ESCAPE TO THE SOUTH DOOR</div>
+        <div id="escapeMsg">ESCAPE TO THE SOUTH DOOR</div>
 
-  <div id="victoryOverlay" class="overlay">
-    <div class="card victory-card">
-      <h2>You did it!</h2>
-      <p>You survived today's grocery run.</p>
-      <p id="victoryTime"></p>
-      <button id="playAgainBtn">Play Again</button>
-    </div>
-  </div>
+        <div id="victoryOverlay" class="overlay">
+            <div class="card victory-card">
+                <h2>You did it!</h2>
+                <p>You survived today's grocery run.</p>
+                <p id="victoryTime"></p>
+                <button id="playAgainBtn">Play Again</button>
+            </div>
+        </div>
 
-  <div id="gameOverOverlay" class="overlay">
-    <div class="card gameover-card">
-      <h2>Game Over</h2>
-      <p>The monster caught you.</p>
-      <p id="gameOverTime"></p>
-      <button id="restartBtn">Try Again</button>
-    </div>
-  </div>
+        <div id="gameOverOverlay" class="overlay">
+            <div class="card gameover-card">
+                <h2>Game Over</h2>
+                <p>The monster caught you.</p>
+                <p id="gameOverTime"></p>
+                <button id="restartBtn">Try Again</button>
+            </div>
+        </div>
 
-  <div id="vignette"></div>
-  <div id="reticle">+</div>
-  <div id="pickupPrompt"></div>
-  <div id="pickupNotif"></div>
+        <div id="vignette"></div>
+        <div id="reticle">+</div>
+        <div id="pickupPrompt"></div>
+        <div id="pickupNotif"></div>
 
-  <script type="module" src="main.js"></script>
-</body>
+        <script id="vertex-shader" type="x-shader/x-vertex">
+            #version 300 es
+
+            in vec3 coordinates;              // Vertex position
+            in vec3 normal;                   // Vertex normal
+            in vec2 textureCoordinates;       // Texture UV
+
+            uniform mat4 uModel;              // Model matrix
+            uniform mat4 uView_matrix;        // View matrix
+            uniform mat4 uP_Matrix;           // Projection matrix
+
+            out vec3 vWorldPosition;          // World position out
+            out vec3 vWorldNormal;            // World normal out
+            out vec2 vtextureCoordinates;     // Texture coordinates out
+
+            void main() {
+                vec4 worldPosition = uModel * vec4(coordinates, 1.0);
+                vWorldPosition = worldPosition.xyz;
+                vWorldNormal = mat3(uModel) * normal;
+                vtextureCoordinates = textureCoordinates;
+                gl_Position = uP_Matrix * uView_matrix * worldPosition;
+            }
+        </script>
+
+        <script id="fragment-shader" type="x-shader/x-fragment">
+            #version 300 es
+            precision mediump float;
+
+            in vec3 vWorldPosition;            // World position in
+            in vec3 vWorldNormal;              // World normal in
+            in vec2 vtextureCoordinates;       // Texture coordinates in
+
+            uniform sampler2D uTexture;        // 2D texture sampler
+            uniform vec3 uCameraPosition;      // Camera position
+            uniform vec3 uLightDir;            // Directional light direction
+
+            // Point lights (up to 4: 3 ceiling fixtures + 1 flashlight)
+            const int MAX_LIGHTS = 4;
+            uniform int  uLightCount;
+            uniform vec3 LightPos[MAX_LIGHTS];       // Light positions
+            uniform vec3 diffuseLight[MAX_LIGHTS];   // Light colors
+            uniform float uLightOn[MAX_LIGHTS];      // On/off scalar per light
+
+            // Material properties
+            uniform float ambientMat;          // Ambient strength
+            uniform float specularMat;         // Specular strength
+            uniform float shininess;           // Shininess exponent
+
+            // Atmospheric effects
+            uniform float uGlobalFlicker;      // Global ambient flicker scalar
+            uniform float uAlpha;              // Per-draw opacity (used for particles)
+
+            out vec4 FragColor;                // Fragment output color
+
+            void main() {
+                vec4 texSample = texture(uTexture, vtextureCoordinates);
+                vec3 baseColor = texSample.rgb;
+                vec3 norm      = normalize(vWorldNormal);
+                vec3 viewDir   = normalize(uCameraPosition - vWorldPosition);
+
+                // Directional fill light (diffuse + specular)
+                vec3  dirL  = normalize(-uLightDir);
+                float diffD = max(dot(norm, dirL), 0.0);
+                vec3  reflD = reflect(-dirL, norm);
+                float specD = pow(max(dot(viewDir, reflD), 0.0), shininess) * specularMat;
+
+                // Accumulate point lights (Phong per light with distance attenuation)
+                vec3 ptAccum = vec3(0.0);
+                for (int i = 0; i < MAX_LIGHTS; i++) {
+                    if (i >= uLightCount) break;
+                    vec3  pv   = LightPos[i] - vWorldPosition;
+                    float dist = max(length(pv), 0.01);
+                    vec3  pl   = normalize(pv);
+                    float att   = 1.0 / (1.0 + 0.22 * dist * dist);
+                    float diffP = max(dot(norm, pl), 0.0) * att;
+                    vec3  reflP = reflect(-pl, norm);
+                    float specP = pow(max(dot(viewDir, reflP), 0.0), shininess) * specularMat * att;
+                    ptAccum += diffuseLight[i] * uLightOn[i] * (diffP + specP);
+                }
+
+                // Combine: ambient (scaled by flicker) + directional + point lights
+                float ambient = ambientMat * uGlobalFlicker;
+                vec3  color   = baseColor * (ambient + diffD * 0.12 + ptAccum) + vec3(specD * 0.05);
+
+                // Exponential fog: blends to near-black over distance
+                float fogDist   = length(uCameraPosition - vWorldPosition);
+                float fogFactor = clamp(exp(-fogDist * 0.048), 0.0, 1.0);
+                color = mix(vec3(0.02, 0.022, 0.028), color, fogFactor);
+
+                FragColor = vec4(color, texSample.a * uAlpha);
+            }
+        </script>
+
+        <script>
+            // Get the canvas element from the HTML document
+            var canvas = document.getElementById('glCanvas');
+            // Create a WebGL2 rendering context from the canvas
+            var gl = canvas.getContext('webgl2');
+            if (!gl) throw new Error('WebGL 2 is not supported in this browser.');
+            // Instantiate the WebGL helper class
+            var myWebGL = new WebGL();
+
+            // HUD elements
+            var hudList           = document.getElementById('shoppingList');
+            var statusLabel       = document.getElementById('status');
+            var timerLabel        = document.getElementById('timer');
+            var instructionsOverlay = document.getElementById('instructions');
+            var startBtn          = document.getElementById('startBtn');
+            var pickupPromptEl    = document.getElementById('pickupPrompt');
+            var pickupNotifEl     = document.getElementById('pickupNotif');
+            var escapeMsgEl       = document.getElementById('escapeMsg');
+            var victoryOverlay    = document.getElementById('victoryOverlay');
+            var victoryTimeEl     = document.getElementById('victoryTime');
+            var playAgainBtn      = document.getElementById('playAgainBtn');
+            var gameOverOverlay   = document.getElementById('gameOverOverlay');
+            var gameOverTimeEl    = document.getElementById('gameOverTime');
+            var vignetteEl        = document.getElementById('vignette');
+
+            // Game state
+            var gameStarted    = false;
+            var doorOpened     = false, doorOpening = false, doorAngle = 0;
+            var flickerUntil   = 0;
+            var scareCenter    = false, scareCrossAisle = false, scareStorage = false;
+            var gameOver       = false, victory = false, finalTime = 0;
+            var monsterStuckTime = 0, monsterSideBias = 1, patrolIndex = 0;
+            var bobPhase       = 0;
+            var startTime      = performance.now(), lastTime = startTime;
+
+            //---------------------------Render Loop---------------------------//
+            function draw(nowMs) {
+                resize();
+                gl.enable(gl.DEPTH_TEST);
+                gl.clearColor(0.02, 0.03, 0.035, 1);
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+                myWebGL.use();
+
+                var proj = Mat4.perspective(72*DEG2RAD, canvas.width/canvas.height, 0.1, 100);
+                var lookDir = [
+                    Math.sin(player.yaw) * Math.cos(player.pitch),
+                    Math.sin(player.pitch),
+                    Math.cos(player.yaw) * Math.cos(player.pitch),
+                ];
+                var moving = input.w || input.s || input.a || input.d;
+                var bobOff = (moving && player.isGrounded) ? 0.055*Math.sin(bobPhase) : 0;
+                var eye    = [player.position[0], player.position[1]+0.4+bobOff, player.position[2]];
+                var view   = Mat4.lookAt(eye, Vec3.add(eye, lookDir), [0,1,0]);
+
+                gl.uniformMatrix4fv(myWebGL.u('uView_matrix'), false, view);
+                gl.uniformMatrix4fv(myWebGL.u('uP_Matrix'),    false, proj);
+                gl.uniform3fv(myWebGL.u('uCameraPosition'), new Float32Array(eye));
+                gl.uniform3fv(myWebGL.u('uLightDir'),       new Float32Array([0.5,-1.0,0.3]));
+                gl.uniform1f(myWebGL.u('uGlobalFlicker'),   worldFlicker(nowMs));
+                gl.uniform1i(myWebGL.u('uLightCount'), 4);
+
+                var t   = nowMs/1000, gf = worldFlicker(nowMs);
+                var lPos = new Float32Array(12), lCol = new Float32Array(12), lOn = new Float32Array(4);
+                for (var i = 0; i < 3; i++) {
+                    var L = CEILING_LIGHTS[i];
+                    lPos[i*3]=L.pos[0]; lPos[i*3+1]=L.pos[1]; lPos[i*3+2]=L.pos[2];
+                    lCol[i*3]=L.color[0]; lCol[i*3+1]=L.color[1]; lCol[i*3+2]=L.color[2];
+                    lOn[i] = gf * (0.6 + 0.4*Math.abs(Math.sin(t*3.7+L.phase))) * 0.5;
+                }
+                lPos[9]=eye[0]; lPos[10]=eye[1]; lPos[11]=eye[2];
+                lCol[9]=FLASHLIGHT_COLOR[0]; lCol[10]=FLASHLIGHT_COLOR[1]; lCol[11]=FLASHLIGHT_COLOR[2];
+                lOn[3] = player.flashlightOn ? 1.0 : 0.0;
+
+                gl.uniform3fv(myWebGL.u('LightPos[0]'),     lPos);
+                gl.uniform3fv(myWebGL.u('diffuseLight[0]'), lCol);
+                gl.uniform1fv(myWebGL.u('uLightOn[0]'),     lOn);
+
+                gl.uniform1f(myWebGL.u('uAlpha'), 1.0);
+                for (var j = 0; j < entities.length; j++) {
+                    var e = entities[j];
+                    if (e.pickable && e.collected) continue;
+                    gl.uniformMatrix4fv(myWebGL.u('uModel'),      false, e.modelMatrix());
+                    gl.uniform1f(myWebGL.u('ambientMat'),   e.material.ambient);
+                    gl.uniform1f(myWebGL.u('specularMat'),  e.material.specular);
+                    gl.uniform1f(myWebGL.u('shininess'),    e.material.shininess);
+                    gl.activeTexture(gl.TEXTURE0);
+                    gl.bindTexture(gl.TEXTURE_2D, e.material.texture.handle);
+                    gl.uniform1i(myWebGL.u('uTexture'), 0);
+                    e.mesh.draw();
+                }
+
+                drawParticles(view);
+            }
+
+            function frame(nowMs) {
+                var dt = Math.min(0.033, (nowMs-lastTime)/1000);
+                lastTime = nowMs;
+
+                if (gameStarted && !gameOver && !victory) {
+                    movePlayer(dt); moveMonster(dt); updateEvents(nowMs); updateVignette();
+                    updateParticles(dt);
+                }
+
+                if (doorOpening && doorAngle < Math.PI/2) {
+                    doorAngle = Math.min(doorAngle + (Math.PI/2)/1.2*dt, Math.PI/2);
+                    door.position[0] = 1.9*(1-Math.cos(doorAngle));
+                    door.position[2] = 25.3 - 1.9*Math.sin(doorAngle);
+                    door.rotationY   = doorAngle;
+                }
+
+                for (var i = 0; i < entities.length; i++)
+                    if (entities[i].pickable && !entities[i].collected) entities[i].rotationY += dt*1.4;
+
+                if (pickupNotifTimer > 0) {
+                    pickupNotifTimer -= dt;
+                    if (pickupNotifTimer <= 0) pickupNotifEl.classList.remove('visible');
+                }
+
+                checkPickupPrompt();
+                var elapsed = victory ? finalTime : (nowMs-startTime)/1000;
+                timerLabel.textContent = 'Time Survived: ' + elapsed.toFixed(1) + 's';
+
+                draw(nowMs);
+                requestAnimationFrame(frame);
+            }
+            //---------------------------Render Loop---------------------------//
+
+            // Build WebGL resources, then kick off image loading
+            buildScene();
+
+            var _pending = ASSET_KEYS.length;
+            ASSET_KEYS.forEach(function(key) {
+                var img = new Image();
+                img.onload = img.onerror = function() {
+                    if (img.naturalWidth > 0) loadedImgs[key] = img;
+                    if (--_pending === 0) buildAndStart();
+                };
+                img.src = 'assets/' + key + '.png';
+            });
+        </script>
+
+    </body>
 </html>

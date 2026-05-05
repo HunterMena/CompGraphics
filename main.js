@@ -1,6 +1,7 @@
 const canvas = document.getElementById('glCanvas');
-const gl = canvas.getContext('webgl');
-if (!gl) throw new Error('WebGL is not supported in this browser.');
+// Use WebGL2 for VAO support and GLSL ES 3.0
+const gl = canvas.getContext('webgl2');
+if (!gl) throw new Error('WebGL 2 is not supported in this browser.');
 
 const hudList = document.getElementById('shoppingList');
 const statusLabel = document.getElementById('status');
@@ -17,6 +18,7 @@ const gameOverTimeEl = document.getElementById('gameOverTime');
 
 const DEG2RAD = Math.PI / 180;
 
+//---------------------------Matrix Math---------------------------//
 const Mat4 = {
   identity() {
     return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
@@ -78,32 +80,59 @@ const Vec3 = {
   normalize(a) { const l=Vec3.length(a)||1; return [a[0]/l,a[1]/l,a[2]/l]; },
   cross(a,b) { return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; },
 };
+//---------------------------Matrix Math---------------------------//
 
+//---------------------------Shader Program---------------------------//
 class ShaderProgram {
   constructor(vsSource, fsSource) {
-    const vs = this._compile(gl.VERTEX_SHADER, vsSource);
-    const fs = this._compile(gl.FRAGMENT_SHADER, fsSource);
+    // Compile both shaders
+    var vs = this._compile(gl.VERTEX_SHADER, vsSource);
+    var fs = this._compile(gl.FRAGMENT_SHADER, fsSource);
+
+    // Link into a program
     this.program = gl.createProgram();
     gl.attachShader(this.program, vs);
     gl.attachShader(this.program, fs);
     gl.linkProgram(this.program);
+
     if (!gl.getProgramParameter(this.program, gl.LINK_STATUS))
       throw new Error(gl.getProgramInfoLog(this.program));
-    this.uniforms = new Map();
+
+    // Detach and delete shaders after linking - program keeps its own linked copy
+    gl.detachShader(this.program, vs);
+    gl.detachShader(this.program, fs);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+
+    // Cache for uniform locations
+    this.uniformLocations = {};
   }
+
   _compile(type, src) {
-    const s = gl.createShader(type);
-    gl.shaderSource(s, src); gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
-    return s;
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, src);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.warn(gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
   }
+
   use() { gl.useProgram(this.program); }
+
+  // Get and cache a uniform location by name
   u(name) {
-    if (!this.uniforms.has(name)) this.uniforms.set(name, gl.getUniformLocation(this.program, name));
-    return this.uniforms.get(name);
+    if (this.uniformLocations[name] !== undefined)
+      return this.uniformLocations[name];
+    this.uniformLocations[name] = gl.getUniformLocation(this.program, name);
+    return this.uniformLocations[name];
   }
 }
+//---------------------------Shader Program---------------------------//
 
+//---------------------------Textures, Materials, Entities---------------------------//
 class Texture {
   constructor(gen) {
     this.handle = gl.createTexture();
@@ -122,32 +151,47 @@ class Texture {
 }
 
 
+//---------------------------Mesh (VAO per mesh)---------------------------//
 class Mesh {
   constructor(vertices, normals, uvs, indices) {
     this.indexCount = indices.length;
-    this.vbo = this._buf(gl.ARRAY_BUFFER, new Float32Array(vertices));
-    this.nbo = this._buf(gl.ARRAY_BUFFER, new Float32Array(normals));
-    this.tbo = this._buf(gl.ARRAY_BUFFER, new Float32Array(uvs));
-    this.ibo = this._buf(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices));
+
+    // One VAO per mesh - records all buffer bindings and attribute pointers
+    this.vao = gl.createVertexArray();
+    gl.bindVertexArray(this.vao);
+
+    // Upload each attribute into its own VBO and wire it up inside the VAO
+    this._setupAttrib(new Float32Array(vertices), 'aPosition', 3);
+    this._setupAttrib(new Float32Array(normals),   'aNormal',   3);
+    this._setupAttrib(new Float32Array(uvs),       'aUV',       2);
+
+    // Index buffer bound inside the VAO so drawElements just works
+    var ibo = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
+    gl.bindVertexArray(null);
   }
-  _buf(target, data) {
-    const b = gl.createBuffer(); gl.bindBuffer(target, b);
-    gl.bufferData(target, data, gl.STATIC_DRAW); return b;
+
+  // Create a VBO, upload data, and register the attribute pointer in the current VAO
+  _setupAttrib(data, name, size) {
+    var buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    var loc = gl.getAttribLocation(shader.program, name);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(loc);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
   }
-  draw(shader) {
-    const bind = (buf, name, size) => {
-      const loc = gl.getAttribLocation(shader.program, name);
-      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(loc);
-    };
-    bind(this.vbo, 'aPosition', 3);
-    bind(this.nbo, 'aNormal', 3);
-    bind(this.tbo, 'aUV', 2);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
+
+  draw() {
+    // Binding the VAO restores all buffer and attribute state recorded at construction
+    gl.bindVertexArray(this.vao);
     gl.drawElements(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0);
+    gl.bindVertexArray(null);
   }
 }
+//---------------------------Mesh (VAO per mesh)---------------------------//
 
 class Material {
   constructor(texture, ambient=0.25, specular=0.6, shininess=24) {
@@ -178,7 +222,9 @@ class Entity {
     };
   }
 }
+//---------------------------Textures, Materials, Entities---------------------------//
 
+//---------------------------Geometry (VAO-backed primitives)---------------------------//
 function createCubeMesh() {
   const p = [
     -0.5,-0.5,0.5, 0.5,-0.5,0.5, 0.5,0.5,0.5, -0.5,0.5,0.5,
@@ -227,70 +273,121 @@ function createCylinderMesh(nSides=10) {
   }
   return new Mesh(p,n,uv,idx);
 }
+//---------------------------Geometry (VAO-backed primitives)---------------------------//
 
-// ── SHADERS ───────────────────────────────────────────────────────────────────
+//---------------------------Shaders---------------------------//
+const vs = `#version 300 es
 
-const vs = `
-attribute vec3 aPosition;
-attribute vec3 aNormal;
-attribute vec2 aUV;
-uniform mat4 uModel, uView, uProj;
-varying vec3 vWorldPos, vNormal;
-varying vec2 vUV;
+// Vertex attributes (per-vertex inputs from VBO)
+in vec3 aPosition;
+in vec3 aNormal;
+in vec2 aUV;
+
+// Transform matrices
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProj;
+
+// Outputs passed to fragment shader (interpolated across triangle)
+out vec3 vWorldPos;
+out vec3 vNormal;
+out vec2 vUV;
+
 void main() {
+  // Transform vertex to world space
   vec4 world = uModel * vec4(aPosition, 1.0);
   vWorldPos = world.xyz;
+
+  // Transform normal to world space using upper-left 3x3 of model matrix
   vNormal = mat3(uModel) * aNormal;
+
   vUV = aUV;
+
+  // Final clip-space position: Projection * View * World
   gl_Position = uProj * uView * world;
 }`;
 
-const fs = `
+const fs = `#version 300 es
 precision mediump float;
-varying vec3 vWorldPos, vNormal;
-varying vec2 vUV;
+
+// Inputs interpolated from vertex shader
+in vec3 vWorldPos;
+in vec3 vNormal;
+in vec2 vUV;
+
+// Texture sampler
 uniform sampler2D uTex;
-uniform vec3 uCameraPos, uLightDir;
-uniform vec3 uPointLightPos[4];
-uniform vec3 uPointLightColor[4];
+
+// Camera and directional light
+uniform vec3 uCameraPos;
+uniform vec3 uLightDir;
+
+// Point light arrays (max 4: 3 ceiling fixtures + 1 flashlight)
+uniform vec3  uPointLightPos[4];
+uniform vec3  uPointLightColor[4];
 uniform float uPointLightOn[4];
-uniform float uAmbient, uSpecular, uShininess, uTime, uGlobalFlicker;
+
+// Material and effect uniforms
+uniform float uAmbient;
+uniform float uSpecular;
+uniform float uShininess;
+uniform float uTime;
+uniform float uGlobalFlicker;
 uniform float uAlpha;
 
-void main() {
-  vec4 texSample = texture2D(uTex, vUV);
-  vec3 baseColor = texSample.rgb;
-  vec3 norm = normalize(vNormal);
-  vec3 viewDir = normalize(uCameraPos - vWorldPos);
+// Fragment output color
+out vec4 FragColor;
 
-  vec3 dirL = normalize(-uLightDir);
+void main() {
+  // Sample the texture
+  vec4 texSample = texture(uTex, vUV);
+  vec3 baseColor = texSample.rgb;
+  vec3 norm      = normalize(vNormal);
+  vec3 viewDir   = normalize(uCameraPos - vWorldPos);
+
+  // Directional fill light (ambient + diffuse + specular)
+  vec3  dirL  = normalize(-uLightDir);
   float diffD = max(dot(norm, dirL), 0.0);
-  vec3 reflD = reflect(-dirL, norm);
+  vec3  reflD = reflect(-dirL, norm);
   float specD = pow(max(dot(viewDir, reflD), 0.0), uShininess) * uSpecular;
 
+  // Accumulate point lights (Phong per light with distance attenuation)
   vec3 ptAccum = vec3(0.0);
   for (int i = 0; i < 4; i++) {
-    vec3 pv = uPointLightPos[i] - vWorldPos;
+    vec3  pv   = uPointLightPos[i] - vWorldPos;
     float dist = max(length(pv), 0.01);
-    vec3 pl = normalize(pv);
-    float att = 1.0 / (1.0 + 0.22 * dist * dist);
+    vec3  pl   = normalize(pv);
+
+    // Quadratic attenuation
+    float att   = 1.0 / (1.0 + 0.22 * dist * dist);
     float diffP = max(dot(norm, pl), 0.0) * att;
-    vec3 reflP = reflect(-pl, norm);
+    vec3  reflP = reflect(-pl, norm);
     float specP = pow(max(dot(viewDir, reflP), 0.0), uShininess) * uSpecular * att;
+
     ptAccum += uPointLightColor[i] * uPointLightOn[i] * (diffP + specP);
   }
 
+  // Combine: ambient (scaled by flicker) + directional + point lights
   float ambient = uAmbient * uGlobalFlicker;
-  vec3 color = baseColor * (ambient + diffD * 0.12 + ptAccum) + vec3(specD * 0.05);
+  vec3  color   = baseColor * (ambient + diffD * 0.12 + ptAccum) + vec3(specD * 0.05);
 
-  float fogDist = length(uCameraPos - vWorldPos);
+  // Exponential fog: blends to near-black over distance
+  float fogDist   = length(uCameraPos - vWorldPos);
   float fogFactor = clamp(exp(-fogDist * 0.048), 0.0, 1.0);
   color = mix(vec3(0.02, 0.022, 0.028), color, fogFactor);
 
-  gl_FragColor = vec4(color, texSample.a * uAlpha);
+  FragColor = vec4(color, texSample.a * uAlpha);
 }`;
+//---------------------------Shaders---------------------------//
 
 const shader = new ShaderProgram(vs, fs);
+shader.use();
+
+// Enable depth testing and back-face culling (matches class setup)
+gl.enable(gl.DEPTH_TEST);
+gl.enable(gl.CULL_FACE);
+gl.cullFace(gl.BACK);
+
 const cubeMesh = createCubeMesh();
 const cylinderMesh = createCylinderMesh();
 
@@ -356,7 +453,7 @@ function drawParticles(view) {
     ]);
     gl.uniformMatrix4fv(shader.u('uModel'), false, m);
     gl.uniform1f(shader.u('uAlpha'), p.alpha);
-    cubeMesh.draw(shader);
+    cubeMesh.draw();
   }
 
   gl.depthMask(true);
@@ -666,7 +763,7 @@ function allItemsCollected() {
   return entities.filter(e=>e.pickable&&e.isRequired).every(e=>e.collected);
 }
 
-// ── COLLISION ─────────────────────────────────────────────────────────────────
+//---------------------------Collision Detection---------------------------//
 function playerCollides(pos, pad=player.radius) {
   const pyBot = pos[1] - 0.3;   // slightly below feet
   const pyTop = pos[1] + 1.8;   // head height
@@ -692,7 +789,9 @@ function monsterHits(pos) {
   return false;
 }
 
-// ── MOVEMENT ──────────────────────────────────────────────────────────────────
+//---------------------------Collision Detection---------------------------//
+
+//---------------------------Movement and Camera---------------------------//
 function movePlayer(dt) {
   if (input.arrowleft)  player.yaw += player.turnSpeed*dt;
   if (input.arrowright) player.yaw -= player.turnSpeed*dt;
@@ -884,7 +983,9 @@ function updateVignette(){
   vignetteEl.style.boxShadow=alpha>0.005?`inset 0 0 80px rgba(180,0,0,${alpha.toFixed(3)})`:'';
 }
 
-// ── INPUT ─────────────────────────────────────────────────────────────────────
+//---------------------------Movement and Camera---------------------------//
+
+//---------------------------Input---------------------------//
 function setupInput(){
   document.addEventListener('keydown',e=>{
     const k=e.key.toLowerCase();
@@ -912,7 +1013,9 @@ function setupInput(){
   });
 }
 
-// ── RENDER ────────────────────────────────────────────────────────────────────
+//---------------------------Input---------------------------//
+
+//---------------------------Render Loop---------------------------//
 function resize(){
   const dpr=Math.min(window.devicePixelRatio||1,2);
   const w=Math.floor(canvas.clientWidth*dpr), h=Math.floor(canvas.clientHeight*dpr);
@@ -970,7 +1073,7 @@ function draw(nowMs){
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D,e.material.texture.handle);
     gl.uniform1i(shader.u('uTex'),0);
-    e.mesh.draw(shader);
+    e.mesh.draw();
   }
 
   drawParticles(view);

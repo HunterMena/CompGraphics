@@ -161,9 +161,9 @@ class Mesh {
     gl.bindVertexArray(this.vao);
 
     // Upload each attribute into its own VBO and wire it up inside the VAO
-    this._setupAttrib(new Float32Array(vertices), 'aPosition', 3);
-    this._setupAttrib(new Float32Array(normals),   'aNormal',   3);
-    this._setupAttrib(new Float32Array(uvs),       'aUV',       2);
+    this._setupAttrib(new Float32Array(vertices), 'coordinates',        3);
+    this._setupAttrib(new Float32Array(normals),  'normal',             3);
+    this._setupAttrib(new Float32Array(uvs),      'textureCoordinates', 2);
 
     // Index buffer bound inside the VAO so drawElements just works
     var ibo = gl.createBuffer();
@@ -278,83 +278,80 @@ function createCylinderMesh(nSides=10) {
 //---------------------------Shaders---------------------------//
 const vs = `#version 300 es
 
-// Vertex attributes (per-vertex inputs from VBO)
-in vec3 aPosition;
-in vec3 aNormal;
-in vec2 aUV;
+in vec3 coordinates;              // Vertex position
+in vec3 normal;                   // Vertex normal
+in vec2 textureCoordinates;       // Texture UV
 
-// Transform matrices
-uniform mat4 uModel;
-uniform mat4 uView;
-uniform mat4 uProj;
+uniform mat4 uModel;              // Model matrix
+uniform mat4 uView_matrix;        // View matrix
+uniform mat4 uP_Matrix;           // Projection matrix
 
-// Outputs passed to fragment shader (interpolated across triangle)
-out vec3 vWorldPos;
-out vec3 vNormal;
-out vec2 vUV;
+out vec3 vWorldPosition;          // World position out
+out vec3 vWorldNormal;            // World normal out
+out vec2 vtextureCoordinates;     // Texture coordinates out
 
 void main() {
   // Transform vertex to world space
-  vec4 world = uModel * vec4(aPosition, 1.0);
-  vWorldPos = world.xyz;
+  vec4 worldPosition = uModel * vec4(coordinates, 1.0);
+  vWorldPosition = worldPosition.xyz;
 
   // Transform normal to world space using upper-left 3x3 of model matrix
-  vNormal = mat3(uModel) * aNormal;
+  vWorldNormal = mat3(uModel) * normal;
 
-  vUV = aUV;
+  vtextureCoordinates = textureCoordinates;
 
   // Final clip-space position: Projection * View * World
-  gl_Position = uProj * uView * world;
+  gl_Position = uP_Matrix * uView_matrix * worldPosition;
 }`;
 
 const fs = `#version 300 es
 precision mediump float;
 
-// Inputs interpolated from vertex shader
-in vec3 vWorldPos;
-in vec3 vNormal;
-in vec2 vUV;
+in vec3 vWorldPosition;            // World position in
+in vec3 vWorldNormal;              // World normal in
+in vec2 vtextureCoordinates;       // Texture coordinates in
 
-// Texture sampler
-uniform sampler2D uTex;
+uniform sampler2D uTexture;        // 2D texture sampler
+uniform vec3 uCameraPosition;      // Camera position
+uniform vec3 uLightDir;            // Directional light direction
 
-// Camera and directional light
-uniform vec3 uCameraPos;
-uniform vec3 uLightDir;
+// Point lights (up to 4: 3 ceiling fixtures + 1 flashlight)
+const int MAX_LIGHTS = 4;
+uniform int  uLightCount;
+uniform vec3 LightPos[MAX_LIGHTS];       // Light positions
+uniform vec3 diffuseLight[MAX_LIGHTS];   // Light colors
+uniform float uLightOn[MAX_LIGHTS];      // On/off scalar per light
 
-// Point light arrays (max 4: 3 ceiling fixtures + 1 flashlight)
-uniform vec3  uPointLightPos[4];
-uniform vec3  uPointLightColor[4];
-uniform float uPointLightOn[4];
+// Material properties
+uniform float ambientMat;          // Ambient strength
+uniform float specularMat;         // Specular strength
+uniform float shininess;           // Shininess exponent
 
-// Material and effect uniforms
-uniform float uAmbient;
-uniform float uSpecular;
-uniform float uShininess;
-uniform float uTime;
-uniform float uGlobalFlicker;
-uniform float uAlpha;
+// Atmospheric effects
+uniform float uGlobalFlicker;      // Global ambient flicker scalar
+uniform float uAlpha;              // Per-draw opacity (used for particles)
 
-// Fragment output color
-out vec4 FragColor;
+out vec4 FragColor;                // Fragment output color
 
 void main() {
   // Sample the texture
-  vec4 texSample = texture(uTex, vUV);
+  vec4 texSample = texture(uTexture, vtextureCoordinates);
   vec3 baseColor = texSample.rgb;
-  vec3 norm      = normalize(vNormal);
-  vec3 viewDir   = normalize(uCameraPos - vWorldPos);
+  vec3 norm      = normalize(vWorldNormal);
+  vec3 viewDir   = normalize(uCameraPosition - vWorldPosition);
 
-  // Directional fill light (ambient + diffuse + specular)
+  // Directional fill light (diffuse + specular)
   vec3  dirL  = normalize(-uLightDir);
   float diffD = max(dot(norm, dirL), 0.0);
   vec3  reflD = reflect(-dirL, norm);
-  float specD = pow(max(dot(viewDir, reflD), 0.0), uShininess) * uSpecular;
+  float specD = pow(max(dot(viewDir, reflD), 0.0), shininess) * specularMat;
 
   // Accumulate point lights (Phong per light with distance attenuation)
   vec3 ptAccum = vec3(0.0);
-  for (int i = 0; i < 4; i++) {
-    vec3  pv   = uPointLightPos[i] - vWorldPos;
+  for (int i = 0; i < MAX_LIGHTS; i++) {
+    if (i >= uLightCount) break;
+
+    vec3  pv   = LightPos[i] - vWorldPosition;
     float dist = max(length(pv), 0.01);
     vec3  pl   = normalize(pv);
 
@@ -362,17 +359,17 @@ void main() {
     float att   = 1.0 / (1.0 + 0.22 * dist * dist);
     float diffP = max(dot(norm, pl), 0.0) * att;
     vec3  reflP = reflect(-pl, norm);
-    float specP = pow(max(dot(viewDir, reflP), 0.0), uShininess) * uSpecular * att;
+    float specP = pow(max(dot(viewDir, reflP), 0.0), shininess) * specularMat * att;
 
-    ptAccum += uPointLightColor[i] * uPointLightOn[i] * (diffP + specP);
+    ptAccum += diffuseLight[i] * uLightOn[i] * (diffP + specP);
   }
 
   // Combine: ambient (scaled by flicker) + directional + point lights
-  float ambient = uAmbient * uGlobalFlicker;
+  float ambient = ambientMat * uGlobalFlicker;
   vec3  color   = baseColor * (ambient + diffD * 0.12 + ptAccum) + vec3(specD * 0.05);
 
   // Exponential fog: blends to near-black over distance
-  float fogDist   = length(uCameraPos - vWorldPos);
+  float fogDist   = length(uCameraPosition - vWorldPosition);
   float fogFactor = clamp(exp(-fogDist * 0.048), 0.0, 1.0);
   color = mix(vec3(0.02, 0.022, 0.028), color, fogFactor);
 
@@ -437,10 +434,10 @@ function drawParticles(view) {
 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, dustMat.texture.handle);
-  gl.uniform1i(shader.u('uTex'), 0);
-  gl.uniform1f(shader.u('uAmbient'), 1.2);
-  gl.uniform1f(shader.u('uSpecular'), 0.0);
-  gl.uniform1f(shader.u('uShininess'), 1.0);
+  gl.uniform1i(shader.u('uTexture'), 0);
+  gl.uniform1f(shader.u('ambientMat'), 1.2);
+  gl.uniform1f(shader.u('specularMat'), 0.0);
+  gl.uniform1f(shader.u('shininess'), 1.0);
 
   for (const p of particles) {
     const s = p.size;
@@ -1040,12 +1037,12 @@ function draw(nowMs){
   const eye=[player.position[0], player.position[1]+0.4+bobOff, player.position[2]];
   const view=Mat4.lookAt(eye, Vec3.add(eye,lookDir), [0,1,0]);
 
-  gl.uniformMatrix4fv(shader.u('uView'),false,view);
-  gl.uniformMatrix4fv(shader.u('uProj'),false,proj);
-  gl.uniform3fv(shader.u('uCameraPos'),new Float32Array(eye));
+  gl.uniformMatrix4fv(shader.u('uView_matrix'),false,view);
+  gl.uniformMatrix4fv(shader.u('uP_Matrix'),false,proj);
+  gl.uniform3fv(shader.u('uCameraPosition'),new Float32Array(eye));
   gl.uniform3fv(shader.u('uLightDir'),new Float32Array([0.5,-1.0,0.3]));
   gl.uniform1f(shader.u('uGlobalFlicker'),worldFlicker(nowMs));
-  gl.uniform1f(shader.u('uTime'),nowMs/1000);
+  gl.uniform1i(shader.u('uLightCount'), 4);
 
   const t=nowMs/1000, gf=worldFlicker(nowMs);
   const lPos=new Float32Array(12), lCol=new Float32Array(12), lOn=new Float32Array(4);
@@ -1059,20 +1056,20 @@ function draw(nowMs){
   lCol[9]=FLASHLIGHT_COLOR[0]; lCol[10]=FLASHLIGHT_COLOR[1]; lCol[11]=FLASHLIGHT_COLOR[2];
   lOn[3]=player.flashlightOn?1.0:0.0;
 
-  gl.uniform3fv(shader.u('uPointLightPos[0]'),lPos);
-  gl.uniform3fv(shader.u('uPointLightColor[0]'),lCol);
-  gl.uniform1fv(shader.u('uPointLightOn[0]'),lOn);
+  gl.uniform3fv(shader.u('LightPos[0]'),lPos);
+  gl.uniform3fv(shader.u('diffuseLight[0]'),lCol);
+  gl.uniform1fv(shader.u('uLightOn[0]'),lOn);
 
   gl.uniform1f(shader.u('uAlpha'), 1.0);
   for(const e of entities){
     if(e.pickable&&e.collected) continue;
     gl.uniformMatrix4fv(shader.u('uModel'),false,e.modelMatrix());
-    gl.uniform1f(shader.u('uAmbient'),e.material.ambient);
-    gl.uniform1f(shader.u('uSpecular'),e.material.specular);
-    gl.uniform1f(shader.u('uShininess'),e.material.shininess);
+    gl.uniform1f(shader.u('ambientMat'),e.material.ambient);
+    gl.uniform1f(shader.u('specularMat'),e.material.specular);
+    gl.uniform1f(shader.u('shininess'),e.material.shininess);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D,e.material.texture.handle);
-    gl.uniform1i(shader.u('uTex'),0);
+    gl.uniform1i(shader.u('uTexture'),0);
     e.mesh.draw();
   }
 
